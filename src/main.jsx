@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -16,7 +16,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const cloudDocRef = doc(db, 'vehicleData', 'main');
-const LOCAL_KEY = 'vehicle_document_expiry_app_v2';
+const LOCAL_KEY = 'vehicle_document_expiry_app_v3';
+const OLD_LOCAL_KEYS = ['vehicle_document_expiry_app_v2', 'vehicle_document_expiry_app'];
 
 const defaultDocs = [
   { name: 'Insurance', expiryDate: '' },
@@ -27,13 +28,46 @@ const defaultDocs = [
   { name: 'RC', expiryDate: '' }
 ];
 
-function loadLocalVehicles() {
+function safeParse(value, fallback) {
   try {
-    const saved = localStorage.getItem(LOCAL_KEY);
-    return saved ? JSON.parse(saved) : [];
+    return value ? JSON.parse(value) : fallback;
   } catch {
-    return [];
+    return fallback;
   }
+}
+
+function cleanVehicle(vehicle) {
+  return {
+    id: vehicle.id || String(Date.now()) + '-' + Math.random().toString(16).slice(2),
+    vehicleNo: (vehicle.vehicleNo || '').trim().toUpperCase(),
+    owner: vehicle.owner || '',
+    mobile: vehicle.mobile || '',
+    docs: Array.isArray(vehicle.docs) && vehicle.docs.length ? vehicle.docs.map((item) => ({
+      name: item.name || 'Document',
+      expiryDate: item.expiryDate || ''
+    })) : defaultDocs.map((item) => ({ ...item })),
+    createdAt: vehicle.createdAt || new Date().toISOString(),
+    updatedAt: vehicle.updatedAt || new Date().toISOString()
+  };
+}
+
+function loadLocalVehicles() {
+  const current = safeParse(localStorage.getItem(LOCAL_KEY), null);
+  if (Array.isArray(current)) return current.map(cleanVehicle);
+
+  for (const key of OLD_LOCAL_KEYS) {
+    const oldData = safeParse(localStorage.getItem(key), null);
+    if (Array.isArray(oldData)) {
+      const migrated = oldData.map(cleanVehicle);
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+  }
+  return [];
+}
+
+function saveLocalVehicles(vehicles) {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(vehicles));
 }
 
 function daysLeft(dateString) {
@@ -52,12 +86,12 @@ function formatDate(dateString) {
 
 function getStatus(expiryDate) {
   const days = daysLeft(expiryDate);
-  if (days === null) return { label: 'Date missing', tone: 'neutral', urgent: false };
-  if (days < 0) return { label: 'Expired ' + Math.abs(days) + ' days ago', tone: 'danger', urgent: true };
-  if (days === 0) return { label: 'Expires today', tone: 'danger', urgent: true };
-  if (days <= 7) return { label: days + ' days left', tone: 'orange', urgent: true };
-  if (days <= 30) return { label: days + ' days left', tone: 'yellow', urgent: true };
-  return { label: days + ' days left', tone: 'green', urgent: false };
+  if (days === null) return { label: 'Date missing', tone: 'neutral', urgent: false, rank: 4 };
+  if (days < 0) return { label: 'Expired ' + Math.abs(days) + ' days ago', tone: 'danger', urgent: true, rank: 0 };
+  if (days === 0) return { label: 'Expires today', tone: 'danger', urgent: true, rank: 1 };
+  if (days <= 7) return { label: days + ' days left', tone: 'orange', urgent: true, rank: 2 };
+  if (days <= 30) return { label: days + ' days left', tone: 'yellow', urgent: true, rank: 3 };
+  return { label: days + ' days left', tone: 'green', urgent: false, rank: 5 };
 }
 
 function urgentDocs(vehicle) {
@@ -77,6 +111,19 @@ function whatsappNumber(number) {
   return digits.length === 10 ? '91' + digits : digits;
 }
 
+function buildWhatsAppText(vehicle, onlyAlerts = true) {
+  const docsToSend = onlyAlerts && urgentDocs(vehicle).length ? urgentDocs(vehicle) : (vehicle.docs || []);
+  const lines = docsToSend
+    .map((item) => '• ' + item.name + ': ' + formatDate(item.expiryDate) + ' (' + getStatus(item.expiryDate).label + ')')
+    .join('\n');
+
+  return 'Vehicle Document Alert\n\nVehicle: ' + vehicle.vehicleNo +
+    '\nOwner: ' + (vehicle.owner || 'Not added') +
+    (vehicle.mobile ? '\nMobile: ' + vehicle.mobile : '') +
+    '\n\n' + (lines || 'No document date added.') +
+    '\n\nPlease renew or verify documents.';
+}
+
 function App() {
   const [vehicles, setVehicles] = useState(loadLocalVehicles);
   const [cloudReady, setCloudReady] = useState(false);
@@ -84,6 +131,9 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState({ vehicleNo: '', owner: '', mobile: '' });
+  const remoteUpdateRef = useRef(false);
+  const saveTimerRef = useRef(null);
+  const firstCloudLoadRef = useRef(true);
 
   useEffect(() => {
     const localVehicles = loadLocalVehicles();
@@ -91,56 +141,83 @@ function App() {
       cloudDocRef,
       async (snapshot) => {
         if (snapshot.exists()) {
-          const cloudVehicles = snapshot.data().vehicles || [];
+          const cloudVehicles = (snapshot.data().vehicles || []).map(cleanVehicle);
+          remoteUpdateRef.current = true;
           setVehicles(cloudVehicles);
-          localStorage.setItem(LOCAL_KEY, JSON.stringify(cloudVehicles));
+          saveLocalVehicles(cloudVehicles);
           setCloudStatus('Cloud synced');
+        } else if (localVehicles.length > 0) {
+          await setDoc(cloudDocRef, { vehicles: localVehicles, updatedAt: serverTimestamp() }, { merge: true });
+          setCloudStatus('Cloud ready');
         } else {
-          if (localVehicles.length > 0) {
-            await setDoc(cloudDocRef, { vehicles: localVehicles, updatedAt: serverTimestamp() });
-          }
           setCloudStatus('Cloud ready');
         }
         setCloudReady(true);
+        firstCloudLoadRef.current = false;
       },
       () => {
-        setCloudStatus('Cloud error - local data active');
+        setCloudStatus('Cloud error - local save active');
         setCloudReady(false);
+        firstCloudLoadRef.current = false;
       }
     );
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(vehicles));
-    if (cloudReady) {
+    saveLocalVehicles(vehicles);
+
+    if (remoteUpdateRef.current) {
+      remoteUpdateRef.current = false;
+      return;
+    }
+
+    if (!cloudReady || firstCloudLoadRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+    setCloudStatus('Saving...');
+    saveTimerRef.current = setTimeout(() => {
       setDoc(cloudDocRef, { vehicles, updatedAt: serverTimestamp() }, { merge: true })
         .then(() => setCloudStatus('Cloud synced'))
-        .catch(() => setCloudStatus('Cloud save failed'));
-    }
+        .catch(() => setCloudStatus('Cloud save failed - local data safe'));
+    }, 650);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
   }, [vehicles, cloudReady]);
 
   const filteredVehicles = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return vehicles;
-    return vehicles.filter((vehicle) =>
+    const list = [...vehicles].sort((a, b) => urgentDocs(b).length - urgentDocs(a).length || (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    if (!q) return list;
+    return list.filter((vehicle) =>
       [vehicle.vehicleNo, vehicle.owner, vehicle.mobile].some((item) => (item || '').toLowerCase().includes(q))
     );
   }, [vehicles, query]);
 
-  const totalAlerts = useMemo(() => vehicles.reduce((sum, vehicle) => sum + urgentDocs(vehicle).length, 0), [vehicles]);
+  const allAlerts = useMemo(() => vehicles.flatMap((vehicle) => urgentDocs(vehicle).map((docItem) => ({ vehicle, docItem, status: getStatus(docItem.expiryDate) }))).sort((a, b) => a.status.rank - b.status.rank), [vehicles]);
+  const totalAlerts = allAlerts.length;
+
+  function touchVehicle(vehicle) {
+    return { ...vehicle, updatedAt: new Date().toISOString() };
+  }
 
   function addVehicle(event) {
     event.preventDefault();
     if (!form.vehicleNo.trim()) return alert('Enter vehicle number');
-    const newVehicle = {
+    const exists = vehicles.some((item) => item.vehicleNo.toLowerCase() === form.vehicleNo.trim().toLowerCase());
+    if (exists && !confirm('This vehicle already exists. Add again?')) return;
+
+    const newVehicle = cleanVehicle({
       id: String(Date.now()) + '-' + Math.random().toString(16).slice(2),
-      vehicleNo: form.vehicleNo.trim().toUpperCase(),
+      vehicleNo: form.vehicleNo,
       owner: form.owner.trim(),
       mobile: form.mobile.trim(),
       docs: defaultDocs.map((item) => ({ ...item })),
-      createdAt: new Date().toISOString()
-    };
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
     setVehicles((prev) => [newVehicle, ...prev]);
     setSelectedId(newVehicle.id);
     setForm({ vehicleNo: '', owner: '', mobile: '' });
@@ -152,74 +229,83 @@ function App() {
     if (selectedId === id) setSelectedId(null);
   }
 
+  function updateVehicle(vehicleId, field, value) {
+    setVehicles((prev) => prev.map((vehicle) => vehicle.id === vehicleId ? touchVehicle({ ...vehicle, [field]: field === 'vehicleNo' ? value.toUpperCase() : value }) : vehicle));
+  }
+
   function updateDoc(vehicleId, index, field, value) {
     setVehicles((prev) => prev.map((vehicle) => {
       if (vehicle.id !== vehicleId) return vehicle;
       const docs = [...(vehicle.docs || [])];
       docs[index] = { ...docs[index], [field]: value };
-      return { ...vehicle, docs };
+      return touchVehicle({ ...vehicle, docs });
     }));
   }
 
   function addCustomDoc(vehicleId) {
     setVehicles((prev) => prev.map((vehicle) => {
       if (vehicle.id !== vehicleId) return vehicle;
-      return { ...vehicle, docs: [...(vehicle.docs || []), { name: 'New Document', expiryDate: '' }] };
+      return touchVehicle({ ...vehicle, docs: [...(vehicle.docs || []), { name: 'New Document', expiryDate: '' }] });
     }));
   }
 
   function removeDoc(vehicleId, index) {
     setVehicles((prev) => prev.map((vehicle) => {
       if (vehicle.id !== vehicleId) return vehicle;
-      return { ...vehicle, docs: (vehicle.docs || []).filter((_, i) => i !== index) };
+      return touchVehicle({ ...vehicle, docs: (vehicle.docs || []).filter((_, i) => i !== index) });
     }));
   }
 
   function sendWhatsApp(vehicle) {
-    const inputNumber = window.prompt('Enter WhatsApp number. Leave blank to select contact.', vehicle.mobile || '');
+    const inputNumber = window.prompt('Enter WhatsApp number. Blank rakhenge to contact select hoga.', vehicle.mobile || '');
     if (inputNumber === null) return;
     const number = whatsappNumber(inputNumber);
-    const docsToSend = urgentDocs(vehicle).length ? urgentDocs(vehicle) : (vehicle.docs || []);
-    const lines = docsToSend.map((item) => '• ' + item.name + ': ' + formatDate(item.expiryDate) + ' (' + getStatus(item.expiryDate).label + ')').join('\n');
-    const text = 'Vehicle Document Alert\n\nVehicle: ' + vehicle.vehicleNo + '\nOwner: ' + (vehicle.owner || 'Not added') + '\n\n' + lines + '\n\nPlease renew or verify documents.';
+    const text = buildWhatsAppText(vehicle, true);
     const url = number ? 'https://wa.me/' + number + '?text=' + encodeURIComponent(text) : 'https://wa.me/?text=' + encodeURIComponent(text);
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function shareAllAlerts() {
+    const text = totalAlerts ? allAlerts.map(({ vehicle, docItem }) => vehicle.vehicleNo + ' - ' + docItem.name + ': ' + formatDate(docItem.expiryDate) + ' (' + getStatus(docItem.expiryDate).label + ')').join('\n') : 'No urgent vehicle document alerts.';
+    window.open('https://wa.me/?text=' + encodeURIComponent('Vehicle Document Alerts\n\n' + text), '_blank', 'noopener,noreferrer');
   }
 
   return (
-    <div className="page compactPage">
-      <header className="hero compactHero">
+    <div className="page">
+      <header className="hero">
         <div>
           <div className="badge">Vehicle Document Alert</div>
           <h1>Vehicle Document Tracker</h1>
-          <p>Cloud connected vehicle document expiry management.</p>
-          <p className="cloudStatus">{cloudStatus}</p>
+          <p>Local save + Firebase cloud sync + WhatsApp alert share.</p>
+          <p className={cloudStatus.includes('failed') || cloudStatus.includes('error') ? 'cloudStatus warn' : 'cloudStatus'}>{cloudStatus}</p>
         </div>
-        <div className="alertBox compactAlertBox">
+        <button className="alertBox" onClick={shareAllAlerts} title="Share all alerts on WhatsApp">
           <span>Total Alerts</span>
           <strong>{totalAlerts}</strong>
-        </div>
+        </button>
       </header>
 
-      <section className="grid compactGrid">
+      <section className="grid">
         <form className="card addCard" onSubmit={addVehicle}>
           <h2>Add Vehicle</h2>
           <input placeholder="Vehicle No. JH05AB1234" value={form.vehicleNo} onChange={(event) => setForm({ ...form, vehicleNo: event.target.value.toUpperCase() })} />
           <input placeholder="Owner / Driver" value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} />
-          <input placeholder="WhatsApp Mobile" value={form.mobile} onChange={(event) => setForm({ ...form, mobile: event.target.value })} />
+          <input placeholder="WhatsApp Mobile" inputMode="tel" value={form.mobile} onChange={(event) => setForm({ ...form, mobile: event.target.value })} />
           <button>Add Vehicle</button>
         </form>
 
         <div className="card selectedAlerts">
-          <h2>Expiry Alerts</h2>
-          {totalAlerts === 0 ? <div className="ok">No urgent alerts.</div> : vehicles.flatMap((vehicle) => urgentDocs(vehicle).map((docItem, index) => {
-            const status = getStatus(docItem.expiryDate);
-            return <div className="alertItem compactItem" key={vehicle.id + docItem.name + index}><div><b>{vehicle.vehicleNo} - {docItem.name}</b><small>{formatDate(docItem.expiryDate)}</small></div><span className={'pill ' + status.tone}>{status.label}</span></div>;
-          }))}
+          <div className="sectionHead"><h2>Expiry Alerts</h2><button className="ghostBtn" onClick={shareAllAlerts}>Share</button></div>
+          {totalAlerts === 0 ? <div className="ok">No urgent alerts.</div> : allAlerts.map(({ vehicle, docItem, status }, index) => (
+            <div className="alertItem" key={vehicle.id + docItem.name + index}>
+              <div><b>{vehicle.vehicleNo} - {docItem.name}</b><small>{formatDate(docItem.expiryDate)}</small></div>
+              <span className={'pill ' + status.tone}>{status.label}</span>
+            </div>
+          ))}
         </div>
       </section>
 
-      <section className="card vehiclesTop compactTop">
+      <section className="card vehiclesTop">
         <h2>Vehicles ({filteredVehicles.length})</h2>
         <div className="search"><span>Search</span><input placeholder="Vehicle / owner / mobile" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
       </section>
@@ -227,7 +313,7 @@ function App() {
       <main>
         {filteredVehicles.length === 0 ? <div className="card empty"><b>No vehicle added.</b><span>Add your first vehicle from the form above.</span></div> : filteredVehicles.map((vehicle) => {
           const open = selectedId === vehicle.id;
-          return <div key={vehicle.id} className={'card vehicleCard compactVehicle ' + (open ? 'activeVehicle' : '')}>
+          return <div key={vehicle.id} className={'card vehicleCard ' + (open ? 'activeVehicle' : '')}>
             <div className="vehicleRow" onClick={() => setSelectedId(open ? null : vehicle.id)}>
               <div className="vehicleMain"><div><h2>{vehicle.vehicleNo}</h2><p>{vehicle.owner || 'Owner not added'} {vehicle.mobile ? '• ' + vehicle.mobile : ''}</p></div></div>
               <div className="vehicleStats"><span className="miniBadge danger">{urgentDocs(vehicle).length} Alert</span><span className="miniBadge green">{validDocs(vehicle).length} Valid</span></div>
@@ -237,10 +323,15 @@ function App() {
               <button className="remove smallRemove" onClick={(event) => { event.stopPropagation(); removeVehicle(vehicle.id); }}>Delete</button>
             </div>
             {open && <>
-              <div className="docs compactDocs">
+              <div className="editVehicle">
+                <input aria-label="Vehicle number" value={vehicle.vehicleNo} onChange={(event) => updateVehicle(vehicle.id, 'vehicleNo', event.target.value)} />
+                <input aria-label="Owner" placeholder="Owner / Driver" value={vehicle.owner} onChange={(event) => updateVehicle(vehicle.id, 'owner', event.target.value)} />
+                <input aria-label="Mobile" placeholder="WhatsApp Mobile" inputMode="tel" value={vehicle.mobile} onChange={(event) => updateVehicle(vehicle.id, 'mobile', event.target.value)} />
+              </div>
+              <div className="docs">
                 {(vehicle.docs || []).map((docItem, index) => {
                   const status = getStatus(docItem.expiryDate);
-                  return <div className="doc compactDoc" key={docItem.name + index}>
+                  return <div className="doc" key={docItem.name + index}>
                     <div className="docTitle"><input value={docItem.name} onChange={(event) => updateDoc(vehicle.id, index, 'name', event.target.value)} /><button onClick={() => removeDoc(vehicle.id, index)}>Delete</button></div>
                     <input type="date" value={docItem.expiryDate} onChange={(event) => updateDoc(vehicle.id, index, 'expiryDate', event.target.value)} />
                     <span className={'pill ' + status.tone}>{status.label}</span>
