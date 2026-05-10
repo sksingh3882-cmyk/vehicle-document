@@ -1,7 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Bell, Car, FileText, Plus, Search, Trash2, AlertTriangle, CheckCircle2, MessageCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Bell, Car, FileText, Plus, Search, Trash2, AlertTriangle, CheckCircle2, MessageCircle, ChevronDown, ChevronRight, Cloud } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 import './style.css';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyBgpT7D9-mgQg-TLS5SHA2LaSlqp6-EBEc',
+  authDomain: 'vehicle-document-c23e2.firebaseapp.com',
+  projectId: 'vehicle-document-c23e2',
+  storageBucket: 'vehicle-document-c23e2.firebasestorage.app',
+  messagingSenderId: '620277943671',
+  appId: '1:620277943671:web:8246b0d76605142ffe2572'
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const cloudDocRef = doc(db, 'vehicleData', 'main');
 
 const STORAGE_KEY = 'vehicle_document_expiry_app_v2';
 const defaultDocs = [
@@ -44,11 +59,46 @@ function whatsappNumber(mobile){ const digits=(mobile||'').replace(/\D/g,''); if
 
 function App(){
   const [vehicles,setVehicles]=useState(loadVehicles);
+  const [cloudReady,setCloudReady]=useState(false);
+  const [cloudStatus,setCloudStatus]=useState('Connecting cloud...');
   const [selectedId,setSelectedId]=useState(null);
   const [query,setQuery]=useState('');
   const [form,setForm]=useState({vehicleNo:'',owner:'',mobile:''});
 
-  useEffect(()=>{ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(vehicles)); localStorage.setItem('vehicle_document_expiry_app_v1',JSON.stringify(vehicles)); }catch(e){ console.error('Unable to save vehicle data',e); } },[vehicles]);
+  useEffect(()=>{
+    const localVehicles = loadVehicles();
+    const unsubscribe = onSnapshot(cloudDocRef, async (snapshot)=>{
+      if(snapshot.exists()){
+        const cloudVehicles = snapshot.data().vehicles || [];
+        setVehicles(cloudVehicles);
+        try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(cloudVehicles)); }catch{}
+        setCloudStatus('Cloud synced');
+      }else{
+        if(localVehicles.length){
+          await setDoc(cloudDocRef,{vehicles:localVehicles,updatedAt:serverTimestamp()});
+        }
+        setCloudStatus('Cloud ready');
+      }
+      setCloudReady(true);
+    },(error)=>{
+      console.error('Cloud sync error',error);
+      setCloudStatus('Cloud error - using local data');
+      setCloudReady(false);
+    });
+    return ()=>unsubscribe();
+  },[]);
+
+  useEffect(()=>{
+    try{
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(vehicles));
+      localStorage.setItem('vehicle_document_expiry_app_v1',JSON.stringify(vehicles));
+    }catch(e){ console.error('Unable to save vehicle data',e); }
+    if(cloudReady){
+      setDoc(cloudDocRef,{vehicles,updatedAt:serverTimestamp()},{merge:true})
+        .then(()=>setCloudStatus('Cloud synced'))
+        .catch((e)=>{ console.error('Cloud save failed',e); setCloudStatus('Cloud save failed'); });
+    }
+  },[vehicles,cloudReady]);
 
   const filteredVehicles=useMemo(()=>{ const q=query.trim().toLowerCase(); if(!q)return vehicles; return vehicles.filter((v)=>[v.vehicleNo,v.owner,v.mobile].some((item)=>(item||'').toLowerCase().includes(q))); },[vehicles,query]);
   const alertDocs=useMemo(()=>vehicles.flatMap((vehicle)=>vehicle.docs.map((doc)=>({vehicle,doc,status:getStatus(doc.expiryDate),days:daysLeft(doc.expiryDate)})).filter((item)=>item.status.urgent)).sort((a,b)=>(a.days??9999)-(b.days??9999)),[vehicles]);
@@ -81,7 +131,7 @@ function App(){
   }
 
   return <div className="page compactPage">
-    <header className="hero compactHero"><div><div className="badge"><Bell size={14}/> Vehicle Document Alert</div><h1>Document Tracker</h1><p>Tap vehicle number to view only that vehicle documents.</p></div><div className="alertBox compactAlertBox"><span>Total Alerts</span><strong>{alertDocs.length}</strong></div></header>
+    <header className="hero compactHero"><div><div className="badge"><Bell size={14}/> Vehicle Document Alert</div><h1>Document Tracker</h1><p>Tap vehicle number to view only that vehicle documents.</p><p className="cloudStatus"><Cloud size={13}/> {cloudStatus}</p></div><div className="alertBox compactAlertBox"><span>Total Alerts</span><strong>{alertDocs.length}</strong></div></header>
     <section className="grid compactGrid">
       <form onSubmit={addVehicle} className="card addCard"><h2><Plus size={17}/> Add Vehicle</h2><input placeholder="Vehicle No. JH05AB1234" value={form.vehicleNo} onChange={(e)=>setForm({...form,vehicleNo:e.target.value.toUpperCase()})}/><input placeholder="Owner / Driver" value={form.owner} onChange={(e)=>setForm({...form,owner:e.target.value})}/><input placeholder="Default WhatsApp Mobile" value={form.mobile} onChange={(e)=>setForm({...form,mobile:e.target.value})}/><button>Add Vehicle</button></form>
       <div className="card selectedAlerts"><h2><AlertTriangle size={17}/> {selectedVehicle?selectedVehicle.vehicleNo:'Select Vehicle'}</h2>{!selectedVehicle?<div className="ok smallInfo">Vehicle no. par tap karo.</div>:selectedAlerts.length===0?<div className="ok"><CheckCircle2 size={17}/> Is vehicle me urgent alert nahi hai.</div>:selectedAlerts.map((doc,idx)=>{const status=getStatus(doc.expiryDate);return <div className="alertItem compactItem" key={idx}><div><b>{doc.name}</b><small>{formatDate(doc.expiryDate)}</small></div><span className={`pill ${status.tone}`}>{status.label}</span></div>;})}</div>
