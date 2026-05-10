@@ -51,6 +51,26 @@ function cleanVehicle(vehicle) {
   };
 }
 
+function vehicleKey(vehicle) {
+  return vehicle.id || vehicle.vehicleNo;
+}
+
+function mergeVehicles(localVehicles, cloudVehicles) {
+  const merged = new Map();
+  [...cloudVehicles, ...localVehicles].map(cleanVehicle).forEach((vehicle) => {
+    const key = vehicleKey(vehicle);
+    const old = merged.get(key);
+    if (!old) {
+      merged.set(key, vehicle);
+      return;
+    }
+    const oldTime = new Date(old.updatedAt || old.createdAt || 0).getTime();
+    const newTime = new Date(vehicle.updatedAt || vehicle.createdAt || 0).getTime();
+    merged.set(key, newTime >= oldTime ? vehicle : old);
+  });
+  return Array.from(merged.values()).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+}
+
 function loadLocalVehicles() {
   const current = safeParse(localStorage.getItem(LOCAL_KEY), null);
   if (Array.isArray(current)) return current.map(cleanVehicle);
@@ -136,27 +156,31 @@ function App() {
   const firstCloudLoadRef = useRef(true);
 
   useEffect(() => {
-    const localVehicles = loadLocalVehicles();
     const unsubscribe = onSnapshot(
       cloudDocRef,
       async (snapshot) => {
+        const localVehicles = loadLocalVehicles();
         if (snapshot.exists()) {
           const cloudVehicles = (snapshot.data().vehicles || []).map(cleanVehicle);
+          const mergedVehicles = mergeVehicles(localVehicles, cloudVehicles);
           remoteUpdateRef.current = true;
-          setVehicles(cloudVehicles);
-          saveLocalVehicles(cloudVehicles);
-          setCloudStatus('Cloud synced');
-        } else if (localVehicles.length > 0) {
-          await setDoc(cloudDocRef, { vehicles: localVehicles, updatedAt: serverTimestamp() }, { merge: true });
-          setCloudStatus('Cloud ready');
+          setVehicles(mergedVehicles);
+          saveLocalVehicles(mergedVehicles);
+          setCloudStatus('Cloud synced • ' + mergedVehicles.length + ' vehicle');
+          if (JSON.stringify(mergedVehicles) !== JSON.stringify(cloudVehicles)) {
+            await setDoc(cloudDocRef, { vehicles: mergedVehicles, updatedAt: serverTimestamp() }, { merge: true });
+          }
         } else {
-          setCloudStatus('Cloud ready');
+          if (localVehicles.length > 0) {
+            await setDoc(cloudDocRef, { vehicles: localVehicles, updatedAt: serverTimestamp() }, { merge: true });
+          }
+          setCloudStatus('Cloud ready • ' + localVehicles.length + ' vehicle');
         }
         setCloudReady(true);
         firstCloudLoadRef.current = false;
       },
-      () => {
-        setCloudStatus('Cloud error - local save active');
+      (error) => {
+        setCloudStatus('Cloud error: ' + (error.code || 'local save active'));
         setCloudReady(false);
         firstCloudLoadRef.current = false;
       }
@@ -175,11 +199,11 @@ function App() {
     if (!cloudReady || firstCloudLoadRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
-    setCloudStatus('Saving...');
+    setCloudStatus('Saving to cloud...');
     saveTimerRef.current = setTimeout(() => {
       setDoc(cloudDocRef, { vehicles, updatedAt: serverTimestamp() }, { merge: true })
-        .then(() => setCloudStatus('Cloud synced'))
-        .catch(() => setCloudStatus('Cloud save failed - local data safe'));
+        .then(() => setCloudStatus('Cloud synced • ' + vehicles.length + ' vehicle'))
+        .catch((error) => setCloudStatus('Cloud save failed: ' + (error.code || 'local data safe')));
     }, 650);
 
     return () => {
