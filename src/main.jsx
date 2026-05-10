@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Bell, Car, FileText, Plus, Search, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import './style.css';
 
-const STORAGE_KEY = 'vehicle_document_expiry_app_v1';
+const STORAGE_KEY = 'vehicle_document_expiry_app_v2';
 
 const defaultDocs = [
   { name: 'Insurance', expiryDate: '' },
@@ -13,6 +13,17 @@ const defaultDocs = [
   { name: 'Tax', expiryDate: '' },
   { name: 'RC', expiryDate: '' },
 ];
+
+function loadVehicles() {
+  try {
+    const savedV2 = localStorage.getItem(STORAGE_KEY);
+    const savedV1 = localStorage.getItem('vehicle_document_expiry_app_v1');
+    const saved = savedV2 || savedV1;
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
 
 function daysLeft(dateString) {
   if (!dateString) return null;
@@ -34,19 +45,17 @@ function getStatus(expiryDate) {
 }
 
 function App() {
-  const [vehicles, setVehicles] = useState([]);
+  const [vehicles, setVehicles] = useState(loadVehicles);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState({ vehicleNo: '', owner: '', mobile: '' });
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { setVehicles(JSON.parse(saved)); } catch { setVehicles([]); }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+      localStorage.setItem('vehicle_document_expiry_app_v1', JSON.stringify(vehicles));
+    } catch (error) {
+      console.error('Unable to save vehicle data', error);
     }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
   }, [vehicles]);
 
   const filteredVehicles = useMemo(() => {
@@ -68,7 +77,7 @@ function App() {
     e.preventDefault();
     if (!form.vehicleNo.trim()) return alert('Vehicle number add karein');
     const newVehicle = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       vehicleNo: form.vehicleNo.trim().toUpperCase(),
       owner: form.owner.trim(),
       mobile: form.mobile.trim(),
