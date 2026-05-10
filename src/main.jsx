@@ -144,7 +144,9 @@ function App() {
   }
 
   function sendWhatsApp(vehicle) {
-    const number = whatsappNumber(vehicle.mobile);
+    const selectedNumber = window.prompt('Jis WhatsApp number par alert bhejna hai wo enter karein. Blank chhodne par contact select hoga.', vehicle.mobile || '');
+    if (selectedNumber === null) return;
+    const number = whatsappNumber(selectedNumber);
     const urgent = urgentDocs(vehicle);
     const docs = urgent.length ? urgent : vehicle.docs;
     const lines = docs.map((doc) => `• ${doc.name}: ${formatDate(doc.expiryDate)} (${getStatus(doc.expiryDate).label})`).join('\n');
@@ -169,7 +171,7 @@ function App() {
           <h2><Plus size={17} /> Add Vehicle</h2>
           <input placeholder="Vehicle No. JH05AB1234" value={form.vehicleNo} onChange={(e) => setForm({ ...form, vehicleNo: e.target.value })} />
           <input placeholder="Owner / Driver" value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} />
-          <input placeholder="WhatsApp Mobile" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+          <input placeholder="Default WhatsApp Mobile" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
           <button>Add Vehicle</button>
         </form>
 
@@ -183,7 +185,7 @@ function App() {
       </section>
 
       <section className="card vehiclesTop compactTop">
-        <h2><Car size={18} /> Vehicles ({filteredVehicles.length})</h2>
+        <h2><Car size={18} /> Vehicle List ({filteredVehicles.length})</h2>
         <div className="search"><Search size={15} /><input placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
       </section>
 
@@ -201,7 +203,7 @@ function App() {
               <div className="vehicleStats"><span className="miniBadge danger">{alerts} Alert</span><span className="miniBadge green">{valid} Valid</span></div>
             </div>
             <div className="vehicleActions">
-              <button className="waBtn" onClick={(e) => { e.stopPropagation(); sendWhatsApp(vehicle); }}><MessageCircle size={15} /> WhatsApp</button>
+              <button className="waBtn" onClick={(e) => { e.stopPropagation(); sendWhatsApp(vehicle); }}><MessageCircle size={15} /> Send</button>
               <button className="remove smallRemove" onClick={(e) => { e.stopPropagation(); removeVehicle(vehicle.id); }}><Trash2 size={15} /> Delete</button>
             </div>
             {open && <>
