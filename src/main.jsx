@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Bell, Car, FileText, Plus, Search, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Bell, Car, FileText, Plus, Search, Trash2, AlertTriangle, CheckCircle2, MessageCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import './style.css';
 
 const STORAGE_KEY = 'vehicle_document_expiry_app_v2';
@@ -34,6 +34,11 @@ function daysLeft(dateString) {
   return Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
 }
 
+function formatDate(dateString) {
+  if (!dateString) return 'Date missing';
+  return new Date(dateString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function getStatus(expiryDate) {
   const days = daysLeft(expiryDate);
   if (days === null) return { label: 'Date missing', tone: 'neutral', urgent: false };
@@ -44,8 +49,27 @@ function getStatus(expiryDate) {
   return { label: `${days} days left`, tone: 'green', urgent: false };
 }
 
+function urgentDocs(vehicle) {
+  return vehicle.docs.filter((doc) => getStatus(doc.expiryDate).urgent);
+}
+
+function validDocs(vehicle) {
+  return vehicle.docs.filter((doc) => {
+    const d = daysLeft(doc.expiryDate);
+    return d !== null && d > 30;
+  });
+}
+
+function whatsappNumber(mobile) {
+  const digits = (mobile || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+}
+
 function App() {
   const [vehicles, setVehicles] = useState(loadVehicles);
+  const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState({ vehicleNo: '', owner: '', mobile: '' });
 
@@ -65,13 +89,11 @@ function App() {
   }, [vehicles, query]);
 
   const alertDocs = useMemo(() => {
-    return vehicles.flatMap((vehicle) =>
-      vehicle.docs
-        .map((doc) => ({ vehicle, doc, status: getStatus(doc.expiryDate), days: daysLeft(doc.expiryDate) }))
-        .filter((item) => item.status.urgent)
-        .sort((a, b) => (a.days ?? 9999) - (b.days ?? 9999))
-    );
+    return vehicles.flatMap((vehicle) => vehicle.docs.map((doc) => ({ vehicle, doc, status: getStatus(doc.expiryDate), days: daysLeft(doc.expiryDate) })).filter((item) => item.status.urgent)).sort((a, b) => (a.days ?? 9999) - (b.days ?? 9999));
   }, [vehicles]);
+
+  const selectedVehicle = vehicles.find((v) => v.id === selectedId);
+  const selectedAlerts = selectedVehicle ? urgentDocs(selectedVehicle) : [];
 
   function addVehicle(e) {
     e.preventDefault();
@@ -85,12 +107,14 @@ function App() {
       createdAt: new Date().toISOString(),
     };
     setVehicles((prev) => [newVehicle, ...prev]);
+    setSelectedId(newVehicle.id);
     setForm({ vehicleNo: '', owner: '', mobile: '' });
   }
 
   function removeVehicle(id) {
     if (!confirm('Is vehicle ko delete karna hai?')) return;
     setVehicles((prev) => prev.filter((v) => v.id !== id));
+    if (selectedId === id) setSelectedId(null);
   }
 
   function updateDoc(vehicleId, index, value) {
@@ -119,62 +143,82 @@ function App() {
     setVehicles((prev) => prev.map((vehicle) => vehicle.id === vehicleId ? { ...vehicle, docs: vehicle.docs.filter((_, i) => i !== index) } : vehicle));
   }
 
+  function sendWhatsApp(vehicle) {
+    const number = whatsappNumber(vehicle.mobile);
+    const urgent = urgentDocs(vehicle);
+    const docs = urgent.length ? urgent : vehicle.docs;
+    const lines = docs.map((doc) => `• ${doc.name}: ${formatDate(doc.expiryDate)} (${getStatus(doc.expiryDate).label})`).join('\n');
+    const text = `Vehicle Document Alert\n\nVehicle: ${vehicle.vehicleNo}\nOwner: ${vehicle.owner || 'Not added'}\n\n${lines}\n\nPlease renew/verify documents.`;
+    const url = number ? `https://wa.me/${number}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  }
+
   return (
-    <div className="page">
-      <header className="hero">
+    <div className="page compactPage">
+      <header className="hero compactHero">
         <div>
-          <div className="badge"><Bell size={16} /> Vehicle Document Alert App</div>
-          <h1>Vehicle Document Expiry Tracker</h1>
-          <p>Insurance, PUC, Fitness, Permit, Tax aur RC expiry ka local alert system.</p>
+          <div className="badge"><Bell size={14} /> Vehicle Document Alert</div>
+          <h1>Document Tracker</h1>
+          <p>Tap vehicle number to view only that vehicle documents.</p>
         </div>
-        <div className="alertBox"><span>Active alerts</span><strong>{alertDocs.length}</strong></div>
+        <div className="alertBox compactAlertBox"><span>Total Alerts</span><strong>{alertDocs.length}</strong></div>
       </header>
 
-      <section className="grid">
-        <form onSubmit={addVehicle} className="card">
-          <h2><Plus size={20} /> Add Vehicle</h2>
-          <input placeholder="Vehicle No. जैसे JH05AB1234" value={form.vehicleNo} onChange={(e) => setForm({ ...form, vehicleNo: e.target.value })} />
-          <input placeholder="Owner / Driver Name" value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} />
-          <input placeholder="Mobile Number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
-          <button>Vehicle Add Karo</button>
+      <section className="grid compactGrid">
+        <form onSubmit={addVehicle} className="card addCard">
+          <h2><Plus size={17} /> Add Vehicle</h2>
+          <input placeholder="Vehicle No. JH05AB1234" value={form.vehicleNo} onChange={(e) => setForm({ ...form, vehicleNo: e.target.value })} />
+          <input placeholder="Owner / Driver" value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} />
+          <input placeholder="WhatsApp Mobile" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+          <button>Add Vehicle</button>
         </form>
 
-        <div className="card alerts">
-          <h2><AlertTriangle size={20} /> Expiry Alerts</h2>
-          {alertDocs.length === 0 ? <div className="ok"><CheckCircle2 size={20} /> Abhi koi urgent expiry alert nahi hai.</div> : alertDocs.map(({ vehicle, doc, status }, idx) => (
-            <div className="alertItem" key={idx}>
-              <div><b>{vehicle.vehicleNo} - {doc.name}</b><small>Owner: {vehicle.owner || 'Not added'} {vehicle.mobile ? `• ${vehicle.mobile}` : ''}</small></div>
-              <span className={`pill ${status.tone}`}>{status.label}</span>
-            </div>
-          ))}
+        <div className="card selectedAlerts">
+          <h2><AlertTriangle size={17} /> {selectedVehicle ? selectedVehicle.vehicleNo : 'Select Vehicle'}</h2>
+          {!selectedVehicle ? <div className="ok smallInfo">Vehicle no. par tap karo.</div> : selectedAlerts.length === 0 ? <div className="ok"><CheckCircle2 size={17} /> Is vehicle me urgent alert nahi hai.</div> : selectedAlerts.map((doc, idx) => {
+            const status = getStatus(doc.expiryDate);
+            return <div className="alertItem compactItem" key={idx}><div><b>{doc.name}</b><small>{formatDate(doc.expiryDate)}</small></div><span className={`pill ${status.tone}`}>{status.label}</span></div>;
+          })}
         </div>
       </section>
 
-      <section className="card vehiclesTop">
-        <h2><Car size={20} /> Vehicles</h2>
-        <div className="search"><Search size={18} /><input placeholder="Search vehicle, owner, mobile" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+      <section className="card vehiclesTop compactTop">
+        <h2><Car size={18} /> Vehicles ({filteredVehicles.length})</h2>
+        <div className="search"><Search size={15} /><input placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
       </section>
 
       <main>
-        {filteredVehicles.length === 0 ? <div className="card empty"><Car size={42} /><b>Abhi vehicle add nahi hai.</b><span>Upar form se pehla vehicle add karein.</span></div> : filteredVehicles.map((vehicle) => (
-          <div key={vehicle.id} className="card vehicleCard">
-            <div className="vehicleHead">
-              <div><h2><Car size={22} /> {vehicle.vehicleNo}</h2><p>{vehicle.owner || 'Owner not added'} {vehicle.mobile ? `• ${vehicle.mobile}` : ''}</p></div>
-              <button className="remove" onClick={() => removeVehicle(vehicle.id)}><Trash2 size={17} /> Remove Vehicle</button>
+        {filteredVehicles.length === 0 ? <div className="card empty"><Car size={34} /><b>Vehicle add nahi hai.</b><span>Upar form se pehla vehicle add karein.</span></div> : filteredVehicles.map((vehicle) => {
+          const open = selectedId === vehicle.id;
+          const alerts = urgentDocs(vehicle).length;
+          const valid = validDocs(vehicle).length;
+          return <div key={vehicle.id} className={`card vehicleCard compactVehicle ${open ? 'activeVehicle' : ''}`}>
+            <div className="vehicleRow" onClick={() => setSelectedId(open ? null : vehicle.id)}>
+              <div className="vehicleMain">
+                {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                <div><h2>{vehicle.vehicleNo}</h2><p>{vehicle.owner || 'Owner not added'} {vehicle.mobile ? `• ${vehicle.mobile}` : ''}</p></div>
+              </div>
+              <div className="vehicleStats"><span className="miniBadge danger">{alerts} Alert</span><span className="miniBadge green">{valid} Valid</span></div>
             </div>
-            <div className="docs">
-              {vehicle.docs.map((doc, index) => {
-                const status = getStatus(doc.expiryDate);
-                return <div className="doc" key={index}>
-                  <div className="docTitle"><FileText size={18} /><input value={doc.name} onChange={(e) => updateDocName(vehicle.id, index, e.target.value)} /><button onClick={() => removeDoc(vehicle.id, index)}><Trash2 size={16} /></button></div>
-                  <input type="date" value={doc.expiryDate} onChange={(e) => updateDoc(vehicle.id, index, e.target.value)} />
-                  <span className={`pill ${status.tone}`}>{status.label}</span>
-                </div>;
-              })}
+            <div className="vehicleActions">
+              <button className="waBtn" onClick={(e) => { e.stopPropagation(); sendWhatsApp(vehicle); }}><MessageCircle size={15} /> WhatsApp</button>
+              <button className="remove smallRemove" onClick={(e) => { e.stopPropagation(); removeVehicle(vehicle.id); }}><Trash2 size={15} /> Delete</button>
             </div>
-            <button className="custom" onClick={() => addCustomDoc(vehicle.id)}>+ Custom Document Add Karo</button>
-          </div>
-        ))}
+            {open && <>
+              <div className="docs compactDocs">
+                {vehicle.docs.map((doc, index) => {
+                  const status = getStatus(doc.expiryDate);
+                  return <div className="doc compactDoc" key={index}>
+                    <div className="docTitle"><FileText size={15} /><input value={doc.name} onChange={(e) => updateDocName(vehicle.id, index, e.target.value)} /><button onClick={() => removeDoc(vehicle.id, index)}><Trash2 size={14} /></button></div>
+                    <input type="date" value={doc.expiryDate} onChange={(e) => updateDoc(vehicle.id, index, e.target.value)} />
+                    <span className={`pill ${status.tone}`}>{status.label}</span>
+                  </div>;
+                })}
+              </div>
+              <button className="custom" onClick={() => addCustomDoc(vehicle.id)}>+ Add Custom Document</button>
+            </>}
+          </div>;
+        })}
       </main>
     </div>
   );
