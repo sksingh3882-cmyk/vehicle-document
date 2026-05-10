@@ -12,9 +12,7 @@
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "react": "latest",
-    "react-dom": "latest",
-    "lucide-react": "latest",
-    "firebase": "latest"
+    "react-dom": "latest"
   },
   "devDependencies": {}
 }
