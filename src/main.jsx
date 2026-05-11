@@ -32,13 +32,15 @@ function buildWhatsAppText(vehicle, selectedDoc = null) {
   const allDocs = Array.isArray(vehicle.docs) ? vehicle.docs : [];
   const failedDocs = allDocs.filter((item) => { const d = daysLeft(item.expiryDate); return d !== null && d <= 0; });
   const soonDocs = allDocs.filter((item) => { const d = daysLeft(item.expiryDate); return d !== null && d > 0 && d <= 30; });
+  const validOnlyDocs = allDocs.filter((item) => { const d = daysLeft(item.expiryDate); return d !== null && d > 30; });
   const selectedDays = selectedDoc ? daysLeft(selectedDoc.expiryDate) : null;
-  let alertType = 'normal';
+  let alertType = 'valid';
   if (selectedDoc && selectedDays !== null && selectedDays <= 0) alertType = 'failed';
   else if (selectedDoc && selectedDays !== null && selectedDays > 0 && selectedDays <= 30) alertType = 'soon';
+  else if (selectedDoc && selectedDays !== null && selectedDays > 30) alertType = 'valid';
   else if (failedDocs.length) alertType = 'failed';
   else if (soonDocs.length) alertType = 'soon';
-  const docs = alertType === 'failed' ? failedDocs : alertType === 'soon' ? soonDocs : (selectedDoc ? [selectedDoc] : allDocs);
+  const docs = alertType === 'failed' ? failedDocs : alertType === 'soon' ? soonDocs : (selectedDoc ? [selectedDoc] : (validOnlyDocs.length ? validOnlyDocs : allDocs));
   const docDetails = docs.map((item) => item.name + ': ' + formatDate(item.expiryDate) + ' (' + getStatus(item.expiryDate).label + ')').join('\n\n');
   const docNames = docs.map((item) => item.name).filter(Boolean).join(', ');
   const serviceDetails = [vehicle.lastService ? 'Last Vehicle Service: ' + formatDate(vehicle.lastService) : '', vehicle.nextService ? 'Next Service: ' + formatDate(vehicle.nextService) : '', vehicle.nextServiceKm ? 'Next Service Km: ' + vehicle.nextServiceKm : ''].filter(Boolean).join('\n');
@@ -46,7 +48,7 @@ function buildWhatsAppText(vehicle, selectedDoc = null) {
     ? 'Please Renew Your ' + (docNames || 'Vehicle Documents') + '\nVehicle Document Soon To Avoid Any Kind Of Penalty'
     : alertType === 'soon'
       ? 'Your Vehicle Document ' + (docNames || 'Documents') + ' Is Expiring Soon\n\nPlease Renew Your Documents To Avoid Any Kind Of Penalty'
-      : 'Please Renew Your Vehicle Document Soon To Avoid Any Kind Of Penalty';
+      : 'Your Vehicle All Documents Is Valid 👍\nDon\'t Forget To Renew Your Vehicle Document\nBefore It Fail.';
   return 'Vehicle Document Alert ⚠️\n\n' +
     (vehicle.owner || 'Vehicle Owner') + '\n' +
     'Mobile Number: ' + (vehicle.mobile || 'Not added') + '\n' +
