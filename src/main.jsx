@@ -28,7 +28,36 @@ function urgentDocs(vehicle) { return (vehicle.docs || []).filter((item) => getS
 function validDocs(vehicle) { return (vehicle.docs || []).filter((item) => { const d = daysLeft(item.expiryDate); return d !== null && d > 30; }); }
 function whatsappNumber(number) { const digits = (number || '').replace(/\D/g, ''); return !digits ? '' : digits.length === 10 ? '91' + digits : digits; }
 function esc(text) { return String(text || '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-function buildWhatsAppText(vehicle, selectedDoc = null) { const docs = selectedDoc ? [selectedDoc] : (urgentDocs(vehicle).length ? urgentDocs(vehicle) : (vehicle.docs || [])); const docDetails = docs.map((item) => item.name + ': ' + formatDate(item.expiryDate) + ' (' + getStatus(item.expiryDate).label + ')').join('\n'); const serviceDetails = [vehicle.lastService ? 'Last Vehicle Service: ' + formatDate(vehicle.lastService) : '', vehicle.nextService ? 'Next Service: ' + formatDate(vehicle.nextService) : '', vehicle.nextServiceKm ? 'Next Service Km: ' + vehicle.nextServiceKm : ''].filter(Boolean).join('\n'); return 'Vehicle Document Alert\n' + (vehicle.owner || 'Vehicle Owner') + '\n' + 'Mobile Number: ' + (vehicle.mobile || 'Not added') + '\n' + 'Vehicle Category: ' + (vehicle.category || 'Not added') + '\n' + 'Vehicle Model "' + (vehicle.model || vehicle.vehicleNo || 'Name') + '"\n\nVehicle validation details\n' + (docDetails || 'No document date added.') + (serviceDetails ? '\n\nService Details\n' + serviceDetails : '') + '\n\nPlease Renew your vehicle Document Soon to Avoid Any Type of Penalty\n\nThank You\n' + APP_NAME; }
+function buildWhatsAppText(vehicle, selectedDoc = null) {
+  const allDocs = Array.isArray(vehicle.docs) ? vehicle.docs : [];
+  const failedDocs = allDocs.filter((item) => { const d = daysLeft(item.expiryDate); return d !== null && d <= 0; });
+  const soonDocs = allDocs.filter((item) => { const d = daysLeft(item.expiryDate); return d !== null && d > 0 && d <= 30; });
+  const selectedDays = selectedDoc ? daysLeft(selectedDoc.expiryDate) : null;
+  let alertType = 'normal';
+  if (selectedDoc && selectedDays !== null && selectedDays <= 0) alertType = 'failed';
+  else if (selectedDoc && selectedDays !== null && selectedDays > 0 && selectedDays <= 30) alertType = 'soon';
+  else if (failedDocs.length) alertType = 'failed';
+  else if (soonDocs.length) alertType = 'soon';
+  const docs = alertType === 'failed' ? failedDocs : alertType === 'soon' ? soonDocs : (selectedDoc ? [selectedDoc] : allDocs);
+  const docDetails = docs.map((item) => item.name + ': ' + formatDate(item.expiryDate) + ' (' + getStatus(item.expiryDate).label + ')').join('\n\n');
+  const docNames = docs.map((item) => item.name).filter(Boolean).join(', ');
+  const serviceDetails = [vehicle.lastService ? 'Last Vehicle Service: ' + formatDate(vehicle.lastService) : '', vehicle.nextService ? 'Next Service: ' + formatDate(vehicle.nextService) : '', vehicle.nextServiceKm ? 'Next Service Km: ' + vehicle.nextServiceKm : ''].filter(Boolean).join('\n');
+  const renewalLine = alertType === 'failed'
+    ? 'Please Renew Your ' + (docNames || 'Vehicle Documents') + '\nVehicle Document Soon To Avoid Any Kind Of Penalty'
+    : alertType === 'soon'
+      ? 'Your Vehicle Document ' + (docNames || 'Documents') + ' Is Expiring Soon\n\nPlease Renew Your Documents To Avoid Any Kind Of Penalty'
+      : 'Please Renew Your Vehicle Document Soon To Avoid Any Kind Of Penalty';
+  return 'Vehicle Document Alert ⚠️\n\n' +
+    (vehicle.owner || 'Vehicle Owner') + '\n' +
+    'Mobile Number: ' + (vehicle.mobile || 'Not added') + '\n' +
+    'Vehicle Category: ' + (vehicle.category || 'Not added') + '\n' +
+    'Vehicle Model "' + (vehicle.model || vehicle.vehicleNo || 'Name') + '"\n\n' +
+    'Vehicle validation details\n' +
+    (docDetails || 'No document date added.') +
+    (serviceDetails ? '\n\nService Details\n' + serviceDetails : '') +
+    '\n\n' + renewalLine +
+    '\n\nThank You\n' + APP_NAME;
+}
 function FieldLabel({ text, children }) { return <label className="fieldLabel"><span>{text}</span>{children}</label>; }
 function SummaryBox({ tone, title, count, note, active, onClick }) { return <button type="button" className={'summaryBox ' + tone + (active ? ' activeSummary' : '')} onClick={onClick}><span>{title}</span><strong>{count}</strong><small>{note}</small></button>; }
 
