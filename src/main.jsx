@@ -5,7 +5,7 @@ import './style.css';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const CLOUD_ROW_ID = 'main';
 const LOCAL_KEY = 'vehicle_document_expiry_app_supabase_v1';
 const OLD_LOCAL_KEYS = ['vehicle_document_expiry_app_v4', 'vehicle_document_expiry_app_v3', 'vehicle_document_expiry_app_v2', 'vehicle_document_expiry_app'];
@@ -107,7 +107,7 @@ function App() {
   async function saveCloud(nextVehicles, label = 'Cloud synced') {
     const clean = nextVehicles.map(cleanVehicle);
     saveLocalVehicles(clean);
-    if (!SUPABASE_URL || !SUPABASE_KEY) { setCloudStatus('Supabase env missing - local save active'); return false; }
+    if (!supabase) { setCloudStatus('Supabase env missing - local save active'); return false; }
     setCloudStatus('Saving to Supabase...');
     const { error } = await supabase.from('vehicles').upsert({ id: CLOUD_ROW_ID, data: { vehicles: clean }, updated_at: new Date().toISOString() });
     if (error) { setCloudStatus('Supabase save failed: ' + (error.message || 'unknown')); return false; }
@@ -116,7 +116,7 @@ function App() {
   }
 
   async function loadCloud() {
-    if (!SUPABASE_URL || !SUPABASE_KEY) { setCloudStatus('Supabase env missing - local save active'); return; }
+    if (!supabase) { setCloudStatus('Supabase env missing - local save active'); return; }
     setCloudStatus('Connecting Supabase...');
     const localVehicles = loadLocalVehicles();
     const { data, error } = await supabase.from('vehicles').select('data').eq('id', CLOUD_ROW_ID).maybeSingle();
@@ -132,7 +132,7 @@ function App() {
 
   useEffect(() => {
     loadCloud().finally(() => { firstLoadRef.current = false; });
-    if (!SUPABASE_URL || !SUPABASE_KEY) return;
+    if (!supabase) return;
     const channel = supabase.channel('vehicle-document-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles', filter: 'id=eq.main' }, (payload) => {
         const cloudVehicles = Array.isArray(payload.new?.data?.vehicles) ? payload.new.data.vehicles.map(cleanVehicle) : [];
