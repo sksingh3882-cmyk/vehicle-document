@@ -3,8 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import './style.css';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://txdpwtlllkgngtgwizgl.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_TiqkHudttDtq0efjGmPYWg_p-mxvCjb';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const CLOUD_ROW_ID = 'main';
 const LOCAL_KEY = 'vehicle_document_expiry_app_supabase_v1';
@@ -90,10 +90,12 @@ function buildWhatsAppText(vehicle) {
     'Thank You\n' +
     'Sanjay Vehicle Management System';
 }
+function FieldLabel({ text, children }) {
+  return <label className="fieldLabel"><span>{text}</span>{children}</label>;
+}
 
 function App() {
   const [vehicles, setVehicles] = useState(loadLocalVehicles);
-  const [cloudReady, setCloudReady] = useState(false);
   const [cloudStatus, setCloudStatus] = useState('Connecting Supabase...');
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState('');
@@ -105,24 +107,29 @@ function App() {
   async function saveCloud(nextVehicles, label = 'Cloud synced') {
     const clean = nextVehicles.map(cleanVehicle);
     saveLocalVehicles(clean);
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      setCloudStatus('Supabase env missing - local save active');
+      return false;
+    }
     setCloudStatus('Saving to Supabase...');
     const { error } = await supabase.from('vehicles').upsert({ id: CLOUD_ROW_ID, data: { vehicles: clean }, updated_at: new Date().toISOString() });
     if (error) {
-      setCloudReady(false);
       setCloudStatus('Supabase save failed: ' + (error.message || 'unknown'));
       return false;
     }
-    setCloudReady(true);
     setCloudStatus(label + ' • ' + clean.length + ' vehicle');
     return true;
   }
 
   async function loadCloud() {
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      setCloudStatus('Supabase env missing - local save active');
+      return;
+    }
     setCloudStatus('Connecting Supabase...');
     const localVehicles = loadLocalVehicles();
     const { data, error } = await supabase.from('vehicles').select('data').eq('id', CLOUD_ROW_ID).maybeSingle();
     if (error) {
-      setCloudReady(false);
       setCloudStatus('Supabase error: ' + error.message);
       return;
     }
@@ -131,26 +138,22 @@ function App() {
     remoteUpdateRef.current = true;
     setVehicles(merged);
     saveLocalVehicles(merged);
-    setCloudReady(true);
     setCloudStatus('Supabase synced • ' + merged.length + ' vehicle');
     if (!data || JSON.stringify(merged) !== JSON.stringify(cloudVehicles)) await saveCloud(merged, 'Supabase merged');
   }
 
   useEffect(() => {
     loadCloud().finally(() => { firstLoadRef.current = false; });
+    if (!SUPABASE_URL || !SUPABASE_KEY) return;
     const channel = supabase.channel('vehicle-document-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles', filter: 'id=eq.main' }, (payload) => {
         const cloudVehicles = Array.isArray(payload.new?.data?.vehicles) ? payload.new.data.vehicles.map(cleanVehicle) : [];
-        if (!cloudVehicles.length && vehicles.length) return;
         remoteUpdateRef.current = true;
         setVehicles(cloudVehicles);
         saveLocalVehicles(cloudVehicles);
-        setCloudReady(true);
         setCloudStatus('Realtime synced • ' + cloudVehicles.length + ' vehicle');
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') setCloudStatus((prev) => prev.includes('Connecting') ? 'Supabase connected' : prev);
-      });
+      .subscribe((status) => { if (status === 'SUBSCRIBED') setCloudStatus((prev) => prev.includes('Connecting') ? 'Supabase connected' : prev); });
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -191,10 +194,10 @@ function App() {
   function shareAllAlerts() { const text = totalAlerts ? allAlerts.map(({ vehicle, docItem }) => vehicle.vehicleNo + ' - ' + (vehicle.model || 'Model not added') + ' - ' + docItem.name + ': ' + formatDate(docItem.expiryDate) + ' (' + getStatus(docItem.expiryDate).label + ')').join('\n') : 'No urgent vehicle document alerts.'; window.open('https://wa.me/?text=' + encodeURIComponent('Vehicle Document Alerts\n\n' + text), '_blank', 'noopener,noreferrer'); }
 
   return <div className="page">
-    <header className="hero"><div><div className="badge">Vehicle Document Alert</div><h1>Vehicle Document Tracker</h1><p>Local save + Supabase cloud sync + WhatsApp alert share.</p><p className={cloudStatus.includes('failed') || cloudStatus.includes('error') ? 'cloudStatus warn' : 'cloudStatus'}>{cloudStatus}</p><button className="syncBtn" onClick={() => saveCloud(vehicles, 'Manual cloud sync')}>Sync Now</button></div><button className="alertBox" onClick={shareAllAlerts}><span>Total Alerts</span><strong>{totalAlerts}</strong></button></header>
-    <section className="grid"><form className="card addCard" onSubmit={addVehicle}><h2>Add Vehicle</h2><input placeholder="Vehicle No. JH05AB1234" value={form.vehicleNo} onChange={(e) => updateForm('vehicleNo', e.target.value.toUpperCase())} /><input placeholder="Vehicle Model" value={form.model} onChange={(e) => updateForm('model', e.target.value)} /><input placeholder="Owner / Driver Name" value={form.owner} onChange={(e) => updateForm('owner', e.target.value)} /><input placeholder="WhatsApp Mobile" inputMode="tel" value={form.mobile} onChange={(e) => updateForm('mobile', e.target.value)} /><input type="date" title="Last Vehicle Service" value={form.lastService} onChange={(e) => updateForm('lastService', e.target.value)} /><input type="date" title="Next Service" value={form.nextService} onChange={(e) => updateForm('nextService', e.target.value)} /><input placeholder="Next Service Km" inputMode="numeric" value={form.nextServiceKm} onChange={(e) => updateForm('nextServiceKm', e.target.value)} /><button>Add Vehicle</button></form><div className="card selectedAlerts"><div className="sectionHead"><h2>Expiry Alerts</h2><button className="ghostBtn" onClick={shareAllAlerts}>Share</button></div>{totalAlerts === 0 ? <div className="ok">No urgent alerts.</div> : allAlerts.map(({ vehicle, docItem, status }, index) => <div className="alertItem" key={vehicle.id + docItem.name + index}><div><b>{vehicle.vehicleNo} - {vehicle.model || 'Model not added'} - {docItem.name}</b><small>{formatDate(docItem.expiryDate)}</small></div><span className={'pill ' + status.tone}>{status.label}</span></div>)}</div></section>
+    <header className="hero"><div><div className="badge">Vehicle Document Alert</div><h1>Vehicle Document Tracker</h1><p>Local save + Supabase cloud sync + WhatsApp alert share.</p><p className={cloudStatus.includes('failed') || cloudStatus.includes('error') || cloudStatus.includes('missing') ? 'cloudStatus warn' : 'cloudStatus'}>{cloudStatus}</p><button className="syncBtn" onClick={() => saveCloud(vehicles, 'Manual cloud sync')}>Sync Now</button></div><button className="alertBox" onClick={shareAllAlerts}><span>Total Alerts</span><strong>{totalAlerts}</strong></button></header>
+    <section className="grid"><form className="card addCard" onSubmit={addVehicle}><h2>Add Vehicle</h2><input placeholder="Vehicle No. JH05AB1234" value={form.vehicleNo} onChange={(e) => updateForm('vehicleNo', e.target.value.toUpperCase())} /><input placeholder="Vehicle Model" value={form.model} onChange={(e) => updateForm('model', e.target.value)} /><input placeholder="Owner / Driver Name" value={form.owner} onChange={(e) => updateForm('owner', e.target.value)} /><input placeholder="WhatsApp Mobile" inputMode="tel" value={form.mobile} onChange={(e) => updateForm('mobile', e.target.value)} /><FieldLabel text="Last Vehicle Service"><input type="date" value={form.lastService} onChange={(e) => updateForm('lastService', e.target.value)} /></FieldLabel><FieldLabel text="Next Service"><input type="date" value={form.nextService} onChange={(e) => updateForm('nextService', e.target.value)} /></FieldLabel><input placeholder="Next Service Km" inputMode="numeric" value={form.nextServiceKm} onChange={(e) => updateForm('nextServiceKm', e.target.value)} /><button>Add Vehicle</button></form><div className="card selectedAlerts"><div className="sectionHead"><h2>Expiry Alerts</h2><button className="ghostBtn" onClick={shareAllAlerts}>Share</button></div>{totalAlerts === 0 ? <div className="ok">No urgent alerts.</div> : allAlerts.map(({ vehicle, docItem, status }, index) => <div className="alertItem" key={vehicle.id + docItem.name + index}><div><b>{vehicle.vehicleNo} - {vehicle.model || 'Model not added'} - {docItem.name}</b><small>{formatDate(docItem.expiryDate)}</small></div><span className={'pill ' + status.tone}>{status.label}</span></div>)}</div></section>
     <section className="card vehiclesTop"><h2>Vehicles ({filteredVehicles.length})</h2><div className="search"><span>Search</span><input placeholder="Vehicle / model / owner / mobile" value={query} onChange={(e) => setQuery(e.target.value)} /></div></section>
-    <main>{filteredVehicles.length === 0 ? <div className="card empty"><b>No vehicle added.</b><span>Add your first vehicle from the form above.</span></div> : filteredVehicles.map((vehicle) => { const open = selectedId === vehicle.id; return <div key={vehicle.id} className={'card vehicleCard ' + (open ? 'activeVehicle' : '')}><div className="vehicleRow" onClick={() => setSelectedId(open ? null : vehicle.id)}><div className="vehicleMain"><div><h2>{vehicle.vehicleNo}</h2><p>{vehicle.model ? vehicle.model + ' • ' : ''}{vehicle.owner || 'Owner not added'} {vehicle.mobile ? '• ' + vehicle.mobile : ''}</p><p>{vehicle.nextService ? 'Next Service: ' + formatDate(vehicle.nextService) : ''}{vehicle.nextServiceKm ? ' • ' + vehicle.nextServiceKm + ' km' : ''}</p></div></div><div className="vehicleStats"><span className="miniBadge danger">{urgentDocs(vehicle).length} Alert</span><span className="miniBadge green">{validDocs(vehicle).length} Valid</span></div></div><div className="vehicleActions"><button className="waBtn" onClick={(e) => { e.stopPropagation(); sendWhatsApp(vehicle); }}>WhatsApp</button><button className="remove smallRemove" onClick={(e) => { e.stopPropagation(); removeVehicle(vehicle.id); }}>Delete</button></div>{open && <><div className="editVehicle"><input value={vehicle.vehicleNo} onChange={(e) => updateVehicle(vehicle.id, 'vehicleNo', e.target.value)} /><input placeholder="Vehicle Model" value={vehicle.model || ''} onChange={(e) => updateVehicle(vehicle.id, 'model', e.target.value)} /><input placeholder="Owner / Driver Name" value={vehicle.owner} onChange={(e) => updateVehicle(vehicle.id, 'owner', e.target.value)} /><input placeholder="WhatsApp Mobile" inputMode="tel" value={vehicle.mobile} onChange={(e) => updateVehicle(vehicle.id, 'mobile', e.target.value)} /><input type="date" title="Last Vehicle Service" value={vehicle.lastService || ''} onChange={(e) => updateVehicle(vehicle.id, 'lastService', e.target.value)} /><input type="date" title="Next Service" value={vehicle.nextService || ''} onChange={(e) => updateVehicle(vehicle.id, 'nextService', e.target.value)} /><input placeholder="Next Service Km" inputMode="numeric" value={vehicle.nextServiceKm || ''} onChange={(e) => updateVehicle(vehicle.id, 'nextServiceKm', e.target.value)} /></div><div className="docs">{(vehicle.docs || []).map((docItem, index) => { const status = getStatus(docItem.expiryDate); return <div className="doc" key={docItem.name + index}><div className="docTitle"><input value={docItem.name} onChange={(e) => updateDoc(vehicle.id, index, 'name', e.target.value)} /><button onClick={() => removeDoc(vehicle.id, index)}>Delete</button></div><input type="date" value={docItem.expiryDate} onChange={(e) => updateDoc(vehicle.id, index, 'expiryDate', e.target.value)} /><span className={'pill ' + status.tone}>{status.label}</span></div>; })}</div><button className="custom" onClick={() => addCustomDoc(vehicle.id)}>+ Add Custom Document</button></>}</div>; })}</main>
+    <main>{filteredVehicles.length === 0 ? <div className="card empty"><b>No vehicle added.</b><span>Add your first vehicle from the form above.</span></div> : filteredVehicles.map((vehicle) => { const open = selectedId === vehicle.id; return <div key={vehicle.id} className={'card vehicleCard ' + (open ? 'activeVehicle' : '')}><div className="vehicleRow" onClick={() => setSelectedId(open ? null : vehicle.id)}><div className="vehicleMain"><div><h2>{vehicle.vehicleNo}</h2><p>{vehicle.model ? vehicle.model + ' • ' : ''}{vehicle.owner || 'Owner not added'} {vehicle.mobile ? '• ' + vehicle.mobile : ''}</p><p>{vehicle.nextService ? 'Next Service: ' + formatDate(vehicle.nextService) : ''}{vehicle.nextServiceKm ? ' • ' + vehicle.nextServiceKm + ' km' : ''}</p></div></div><div className="vehicleStats"><span className="miniBadge danger">{urgentDocs(vehicle).length} Alert</span><span className="miniBadge green">{validDocs(vehicle).length} Valid</span></div></div><div className="vehicleActions"><button className="waBtn" onClick={(e) => { e.stopPropagation(); sendWhatsApp(vehicle); }}>WhatsApp</button><button className="remove smallRemove" onClick={(e) => { e.stopPropagation(); removeVehicle(vehicle.id); }}>Delete</button></div>{open && <><div className="editVehicle"><input value={vehicle.vehicleNo} onChange={(e) => updateVehicle(vehicle.id, 'vehicleNo', e.target.value)} /><input placeholder="Vehicle Model" value={vehicle.model || ''} onChange={(e) => updateVehicle(vehicle.id, 'model', e.target.value)} /><input placeholder="Owner / Driver Name" value={vehicle.owner} onChange={(e) => updateVehicle(vehicle.id, 'owner', e.target.value)} /><input placeholder="WhatsApp Mobile" inputMode="tel" value={vehicle.mobile} onChange={(e) => updateVehicle(vehicle.id, 'mobile', e.target.value)} /><FieldLabel text="Last Vehicle Service"><input type="date" value={vehicle.lastService || ''} onChange={(e) => updateVehicle(vehicle.id, 'lastService', e.target.value)} /></FieldLabel><FieldLabel text="Next Service"><input type="date" value={vehicle.nextService || ''} onChange={(e) => updateVehicle(vehicle.id, 'nextService', e.target.value)} /></FieldLabel><input placeholder="Next Service Km" inputMode="numeric" value={vehicle.nextServiceKm || ''} onChange={(e) => updateVehicle(vehicle.id, 'nextServiceKm', e.target.value)} /></div><div className="docs">{(vehicle.docs || []).map((docItem, index) => { const status = getStatus(docItem.expiryDate); return <div className="doc" key={docItem.name + index}><div className="docTitle"><input value={docItem.name} onChange={(e) => updateDoc(vehicle.id, index, 'name', e.target.value)} /><button onClick={() => removeDoc(vehicle.id, index)}>Delete</button></div><input type="date" value={docItem.expiryDate} onChange={(e) => updateDoc(vehicle.id, index, 'expiryDate', e.target.value)} /><span className={'pill ' + status.tone}>{status.label}</span></div>; })}</div><button className="custom" onClick={() => addCustomDoc(vehicle.id)}>+ Add Custom Document</button></>}</div>; })}</main>
   </div>;
 }
 
