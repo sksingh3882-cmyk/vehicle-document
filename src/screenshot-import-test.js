@@ -96,7 +96,7 @@
   function applyExtractedData(vehicleId, extracted) {
     const vehicles = readVehicles();
     const next = vehicles.map((vehicle) => {
-      if (vehicle.id !== vehicleId) return vehicle;
+      if (String(vehicle.id) !== String(vehicleId)) return vehicle;
       let updated = { ...vehicle };
       TARGET_DOCS.forEach((docName) => {
         if (extracted[docName]) updated = ensureDoc(updated, docName, extracted[docName]);
@@ -120,9 +120,7 @@
     panel.id = 'screenshotImportPanel';
     panel.className = 'card';
     panel.style.marginBottom = '10px';
-
-    panel.innerHTML = '<div class="sectionHead"><h2>Import Screenshot</h2></div><p style="font-size:12px;color:#64748b;margin:0 0 8px">Upload vehicle document screenshot to automatically detect Insurance, PUC, Fitness and Tax dates.</p><select class="ocrVehicle" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px"></select><input class="ocrFile" type="file" accept="image/*" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px" /><button class="ocrRead" style="background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:700">Read Screenshot</button><div class="ocrStatus" style="font-size:12px;color:#64748b;margin-top:8px">No screenshot selected.</div><div class="ocrPreview" style="margin-top:8px"></div><button class="ocrApply" style="display:none;background:#16a34a;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:700;margin-top:8px">Confirm & Save Dates</button>';
-
+    panel.innerHTML = '<div class="sectionHead"><h2>Import Screenshot</h2></div><p style="font-size:12px;color:#64748b;margin:0 0 8px">Upload vehicle document screenshot to automatically detect Insurance, PUC, Fitness and Tax dates.</p><select class="ocrVehicle" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px;color:#111827;background:#fff;min-height:48px"></select><input class="ocrFile" type="file" accept="image/*" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px" /><button class="ocrRead" style="background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:700">Read Screenshot</button><div class="ocrStatus" style="font-size:12px;color:#64748b;margin-top:8px">No screenshot selected.</div><div class="ocrPreview" style="margin-top:8px"></div><button class="ocrApply" style="display:none;background:#16a34a;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:700;margin-top:8px">Confirm & Save Dates</button>';
     vehiclesTop.insertAdjacentElement('beforebegin', panel);
 
     const vehicleSelect = panel.querySelector('.ocrVehicle');
@@ -132,38 +130,40 @@
     let extracted = {};
 
     function refreshVehicles() {
-      const vehicles = readVehicles();
+      const vehicles = readVehicles().filter((vehicle) => vehicle && vehicle.id);
       const currentValue = vehicleSelect.value;
       if (!vehicles.length) {
-        vehicleSelect.innerHTML = '<option value="">Loading vehicles...</option>';
+        vehicleSelect.innerHTML = '<option value="">Vehicles loading... please wait</option>';
         return false;
       }
-      vehicleSelect.innerHTML = vehicles.map((vehicle) => '<option value="' + vehicle.id + '">' + (vehicle.vehicleNo || 'Vehicle') + ' - ' + (vehicle.model || 'Model') + '</option>').join('');
-      if (currentValue) vehicleSelect.value = currentValue;
+      vehicleSelect.innerHTML = vehicles.map((vehicle) => {
+        const label = (vehicle.vehicleNo || 'Vehicle') + ' - ' + (vehicle.model || vehicle.category || 'Model');
+        return '<option value="' + String(vehicle.id).replace(/"/g, '&quot;') + '">' + label + '</option>';
+      }).join('');
+      const values = vehicles.map((vehicle) => String(vehicle.id));
+      if (currentValue && values.includes(String(currentValue))) vehicleSelect.value = currentValue;
+      else vehicleSelect.selectedIndex = 0;
       return true;
     }
 
     refreshVehicles();
-    const refreshTimer = setInterval(() => {
-      if (refreshVehicles()) clearInterval(refreshTimer);
-    }, 1500);
-    vehicleSelect.addEventListener('focus', refreshVehicles);
+    const refreshTimer = setInterval(refreshVehicles, 1000);
+    setTimeout(() => clearInterval(refreshTimer), 20000);
+    ['focus', 'click', 'touchstart', 'change'].forEach((eventName) => vehicleSelect.addEventListener(eventName, refreshVehicles));
+    document.addEventListener('visibilitychange', refreshVehicles);
     window.addEventListener('storage', refreshVehicles);
 
     panel.querySelector('.ocrRead').onclick = async () => {
       refreshVehicles();
       const file = fileInput.files && fileInput.files[0];
       if (!file) return alert('Pehle screenshot select karo.');
-
       try {
         status.textContent = 'OCR library loading...';
         const Tesseract = await loadTesseract();
         status.textContent = 'Reading screenshot...';
         const result = await Tesseract.recognize(file, 'eng', {
           logger: (m) => {
-            if (m && m.status) {
-              status.textContent = 'OCR: ' + m.status + (m.progress ? ' ' + Math.round(m.progress * 100) + '%' : '');
-            }
+            if (m && m.status) status.textContent = 'OCR: ' + m.status + (m.progress ? ' ' + Math.round(m.progress * 100) + '%' : '');
           }
         });
         const text = result && result.data ? result.data.text : '';
@@ -180,7 +180,7 @@
     applyButton.onclick = () => {
       refreshVehicles();
       const vehicleId = vehicleSelect.value;
-      if (!vehicleId) return alert('Vehicle select nahi hai.');
+      if (!vehicleId) return alert('Vehicle select nahi hai. Page reload karke dobara try karo.');
       const edited = {};
       panel.querySelectorAll('.ocrPreview input[data-doc]').forEach((input) => {
         edited[input.dataset.doc] = input.value;
