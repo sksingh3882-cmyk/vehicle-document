@@ -1,59 +1,69 @@
 (function () {
-  const STORAGE_KEY = 'vehicle_document_expiry_app_supabase_v1';
   const originalOpen = window.open;
+  let lastClickedVehicleNo = '';
 
-  function readVehicles() {
-    try {
-      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      return Array.isArray(data) ? data : [];
-    } catch (error) {
-      return [];
-    }
-  }
-
-  function normalize(value) {
+  function cleanVehicleNo(value) {
     return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
   }
 
-  function findVehicleFromMessage(message) {
-    const vehicles = readVehicles();
-    const upperMessage = normalize(message);
+  function extractVehicleNoFromText(text) {
+    const value = String(text || '').trim();
+    const match = value.match(/\b[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{3,5}\b/i);
+    return match ? cleanVehicleNo(match[0]) : '';
+  }
 
-    return vehicles.find((vehicle) => {
-      const vehicleNo = normalize(vehicle.vehicleNo);
-      if (vehicleNo && upperMessage.includes(vehicleNo)) return true;
+  function captureClickedVehicleNo(event) {
+    const button = event.target && event.target.closest ? event.target.closest('.waBtn') : null;
+    if (!button) return;
 
-      const model = normalize(vehicle.model);
-      const mobile = String(vehicle.mobile || '').replace(/\D/g, '');
-      return model && mobile && upperMessage.includes(model) && upperMessage.includes(mobile);
-    }) || null;
+    const vehicleCard = button.closest('.vehicleCard');
+    if (vehicleCard) {
+      const heading = vehicleCard.querySelector('h2');
+      const vehicleNo = extractVehicleNoFromText(heading && heading.textContent);
+      if (vehicleNo) {
+        lastClickedVehicleNo = vehicleNo;
+        return;
+      }
+    }
+
+    const alertRow = button.closest('.alertItem');
+    if (alertRow) {
+      const bold = alertRow.querySelector('b');
+      const vehicleNo = extractVehicleNoFromText(bold && bold.textContent);
+      if (vehicleNo) lastClickedVehicleNo = vehicleNo;
+    }
   }
 
   function addVehicleNumberToText(text) {
     if (!text || !text.includes('Vehicle Document Alert')) return text;
     if (/Vehicle\s*(No|Number)\s*:/i.test(text)) return text;
+    if (!lastClickedVehicleNo) return text;
 
-    const vehicle = findVehicleFromMessage(text);
-    if (!vehicle || !vehicle.vehicleNo) return text;
+    const line = 'Vehicle Number: ' + lastClickedVehicleNo;
 
-    return text.replace(
-      'Vehicle Category:',
-      'Vehicle Number: ' + vehicle.vehicleNo + '\nVehicle Category:'
-    );
+    if (/Mobile Number:[^\n]*\n/i.test(text)) {
+      return text.replace(/(Mobile Number:[^\n]*\n)/i, '$1' + line + '\n');
+    }
+
+    if (text.includes('Vehicle Category:')) {
+      return text.replace('Vehicle Category:', line + '\nVehicle Category:');
+    }
+
+    return text.replace('Vehicle Document Alert ⚠️\n\n', 'Vehicle Document Alert ⚠️\n\n' + line + '\n');
   }
+
+  document.addEventListener('click', captureClickedVehicleNo, true);
 
   window.open = function patchedOpen(url, target, features) {
     try {
       const value = String(url || '');
       if (value.includes('wa.me/') && value.includes('text=')) {
-        const splitUrl = value.split('text=');
-        const beforeText = splitUrl[0];
-        const encodedText = splitUrl.slice(1).join('text=');
+        const textIndex = value.indexOf('text=');
+        const beforeText = value.slice(0, textIndex + 5);
+        const encodedText = value.slice(textIndex + 5);
         const decodedText = decodeURIComponent(encodedText);
         const fixedText = addVehicleNumberToText(decodedText);
-        if (fixedText !== decodedText) {
-          return originalOpen.call(window, beforeText + 'text=' + encodeURIComponent(fixedText), target, features);
-        }
+        return originalOpen.call(window, beforeText + encodeURIComponent(fixedText), target, features);
       }
     } catch (error) {
       // Fallback to original WhatsApp link if patch cannot parse it.
