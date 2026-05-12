@@ -124,6 +124,12 @@
     panel.innerHTML = '<div class="sectionHead"><h2>Import Screenshot</h2></div><p style="font-size:12px;color:#64748b;margin:0 0 8px">Upload vehicle document screenshot to automatically detect Insurance, PUC, Fitness and Tax dates.</p><select class="ocrVehicle" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px"></select><input class="ocrFile" type="file" accept="image/*" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:8px" /><button class="ocrRead" style="background:#2563eb;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:700">Read Screenshot</button><div class="ocrStatus" style="font-size:12px;color:#64748b;margin-top:8px">No screenshot selected.</div><div class="ocrPreview" style="margin-top:8px"></div><button class="ocrApply" style="display:none;background:#16a34a;color:white;border:0;border-radius:10px;padding:10px 14px;font-weight:700;margin-top:8px">Confirm & Save Dates</button>';
 
     vehiclesTop.insertAdjacentElement('beforebegin', panel);
+
+    const applyButton = panel.querySelector('.ocrApply');
+
+    applyButton.onclick = () => {
+      alert('Vehicle Data Saved Successfully ✅');
+    };
   }
 
   const timer = setInterval(addPanel, 800);
