@@ -125,10 +125,69 @@
 
     vehiclesTop.insertAdjacentElement('beforebegin', panel);
 
+    const vehicleSelect = panel.querySelector('.ocrVehicle');
+    const status = panel.querySelector('.ocrStatus');
+    const fileInput = panel.querySelector('.ocrFile');
     const applyButton = panel.querySelector('.ocrApply');
+    let extracted = {};
+
+    function refreshVehicles() {
+      const vehicles = readVehicles();
+      const currentValue = vehicleSelect.value;
+      if (!vehicles.length) {
+        vehicleSelect.innerHTML = '<option value="">Loading vehicles...</option>';
+        return false;
+      }
+      vehicleSelect.innerHTML = vehicles.map((vehicle) => '<option value="' + vehicle.id + '">' + (vehicle.vehicleNo || 'Vehicle') + ' - ' + (vehicle.model || 'Model') + '</option>').join('');
+      if (currentValue) vehicleSelect.value = currentValue;
+      return true;
+    }
+
+    refreshVehicles();
+    const refreshTimer = setInterval(() => {
+      if (refreshVehicles()) clearInterval(refreshTimer);
+    }, 1500);
+    vehicleSelect.addEventListener('focus', refreshVehicles);
+    window.addEventListener('storage', refreshVehicles);
+
+    panel.querySelector('.ocrRead').onclick = async () => {
+      refreshVehicles();
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return alert('Pehle screenshot select karo.');
+
+      try {
+        status.textContent = 'OCR library loading...';
+        const Tesseract = await loadTesseract();
+        status.textContent = 'Reading screenshot...';
+        const result = await Tesseract.recognize(file, 'eng', {
+          logger: (m) => {
+            if (m && m.status) {
+              status.textContent = 'OCR: ' + m.status + (m.progress ? ' ' + Math.round(m.progress * 100) + '%' : '');
+            }
+          }
+        });
+        const text = result && result.data ? result.data.text : '';
+        extracted = extractDates(text);
+        renderPreview(panel, extracted);
+        applyButton.style.display = 'inline-block';
+        const foundCount = TARGET_DOCS.filter((docName) => extracted[docName]).length;
+        status.textContent = foundCount + ' date found. Preview check karo.';
+      } catch (error) {
+        status.textContent = 'OCR failed: ' + (error.message || 'unknown error');
+      }
+    };
 
     applyButton.onclick = () => {
+      refreshVehicles();
+      const vehicleId = vehicleSelect.value;
+      if (!vehicleId) return alert('Vehicle select nahi hai.');
+      const edited = {};
+      panel.querySelectorAll('.ocrPreview input[data-doc]').forEach((input) => {
+        edited[input.dataset.doc] = input.value;
+      });
+      applyExtractedData(vehicleId, edited);
       alert('Vehicle Data Saved Successfully ✅');
+      location.reload();
     };
   }
 
