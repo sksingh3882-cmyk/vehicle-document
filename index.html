@@ -10,6 +10,7 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script type="module" src="/src/screenshot-import-test.js"></script>
+    <script type="module" src="/src/test-whatsapp-message-fix.js"></script>
     <script>
       (function () {
         const STORAGE_KEY = 'vehicle_document_expiry_app_supabase_v1';
@@ -65,9 +66,8 @@
             alert('Popup blocked. Browser popup allow karo, phir PDF Report dabao.');
             return;
           }
-          win.document.write('<!doctype html><html><head><title>Vehicle Document Report</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111827}h1{margin:0;color:#1d4ed8}.top{border-bottom:3px solid #2563eb;padding-bottom:12px;margin-bottom:16px}.summary{display:flex;gap:10px;margin:14px 0}.box{border:1px solid #d1d5db;border-radius:10px;padding:10px;min-width:120px}.vehicle-card{page-break-inside:avoid;border:1px solid #dbeafe;border-radius:14px;padding:14px;margin:14px 0}h2{margin:0 0 8px;color:#0f172a}p{margin:5px 0}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left;font-size:13px}th{background:#eff6ff}.footer{margin-top:24px;text-align:center;color:#475569;font-weight:bold}@media print{button{display:none}body{margin:10mm}}</style></head><body><div class="top"><h1>Vehicle Document Report</h1><p>Generated: ' + esc(now) + '</p><p><b>Total Vehicles:</b> ' + vehicles.length + '</p></div><button onclick="window.print()" style="background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 14px;font-weight:bold">Save / Print PDF</button>' + rows + '<div class="footer">Thank You<br/>Sanjay Vehicle Management System</div></body></html>');
+          win.document.write('<!doctype html><html><head><title>Vehicle Document Report</title></head><body>' + rows + '</body></html>');
           win.document.close();
-          setTimeout(function () { win.print(); }, 500);
         }
         function addButton() {
           if (document.getElementById('pdfReportBtn')) return;
