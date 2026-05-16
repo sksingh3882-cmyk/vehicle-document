@@ -1,1 +1,45 @@
 *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#eef5ff;color:#1e293b}button,input,select{font-family:inherit}.page{max-width:1100px;margin:auto;padding:8px}.hero,.card{background:#fff;border-radius:18px;padding:12px;box-shadow:0 6px 18px rgba(37,99,235,.07);border:1px solid #dbeafe}.hero{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;gap:6px;background:#dbeafe;color:#2563eb;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800}.hero h1{margin:7px 0 4px;font-size:21px;line-height:1.14;color:#0f172a;letter-spacing:-.4px}.hero p{margin:0;font-size:12px;color:#64748b}.cloudStatus{margin-top:6px!important;font-weight:800;font-size:12px!important}.cloudStatus.warn{color:#dc2626}.alertBox{display:none}.syncBtn{margin-top:7px;margin-right:6px}.summaryBoxes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 10px}.summaryBox{border:0;border-radius:14px;padding:8px 4px;text-align:center;color:#fff;font-weight:800;box-shadow:0 4px 10px rgba(15,23,42,.12);min-height:74px;display:flex;flex-direction:column;justify-content:center;align-items:center}.summaryBox span{display:block;font-size:11px;margin-bottom:4px;line-height:1.05}.summaryBox strong{display:block;font-size:23px;line-height:1}.summaryBox small{display:block;font-size:9px;margin-top:4px;opacity:.98;line-height:1.1}.redBox{background:linear-gradient(135deg,#ff4545,#dc2626)}.yellowBox{background:linear-gradient(135deg,#ffd21f,#ca8a04)}.greenBox{background:linear-gradient(135deg,#28c965,#15803d)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.card h2{display:flex;align-items:center;gap:6px;margin:0 0 9px;font-size:15px;color:#0f172a}.card input,.card select{width:100%;padding:10px 11px;border-radius:11px;border:1px solid #cbd5e1;background:#fff;font-size:13px;margin-bottom:7px;outline:none}.card input:focus,.card select:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}.card button{border:none;border-radius:11px;padding:9px 12px;font-weight:800;font-size:12px;cursor:pointer;transition:.2s}.card button:hover{transform:translateY(-1px)}.addCard button,.waBtn,.syncBtn{background:#2563eb;color:#fff}.remove{background:#fee2e2!important;color:#dc2626!important}.custom,.ghostBtn{background:#eff6ff!important;color:#2563eb!important}.vehiclesTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px}.search{display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #dbeafe;padding:0 10px;border-radius:12px;min-width:260px}.search span{font-size:14px;color:#0f172a;font-weight:800}.search input{margin:0;border:none;background:transparent;padding:10px 0}.vehicleCard{margin-bottom:7px}.vehicleRow{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}.vehicleMain{display:flex;align-items:center;gap:8px}.vehicleMain h2{margin:0;font-size:15px;color:#0f172a;letter-spacing:-.2px}.vehicleMain p{margin:2px 0 0;font-size:11px;color:#64748b}.vehicleStats,.vehicleActions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.vehicleActions{margin-top:8px}.miniBadge,.pill{padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800}.danger{background:#fee2e2;color:#dc2626}.orange{background:#ffedd5;color:#ea580c}.yellow{background:#fef9c3;color:#ca8a04}.green{background:#dcfce7;color:#16a34a}.neutral{background:#e2e8f0;color:#475569}.alertItem{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px;border:1px solid #e2e8f0;border-radius:13px;margin-bottom:7px;background:#fbfdff}.alertItem b{font-size:12px}.alertItem small{display:block;color:#64748b;font-size:10px;margin-top:2px}.docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:8px}.doc{background:#f8fbff;border:1px solid #dbeafe;border-radius:13px;padding:9px}.docTitle{display:flex;align-items:center;gap:5px;margin-bottom:5px}.docTitle input{margin:0;padding:7px 9px;font-size:11px}.docTitle button{background:transparent!important;padding:4px;color:#64748b}.empty{text-align:center;padding:22px;color:#64748b}.empty b{display:block;margin:8px 0;color:#0f172a}.ok{display:flex;align-items:center;gap:6px;background:#ecfdf5;color:#16a34a;padding:9px;border-radius:12px;font-size:12px}.activeVehicle{border-color:#2563eb;background:#f8fbff}.editVehicle{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}.sectionHead{display:flex;justify-content:space-between;align-items:center;gap:8px}@media(max-width:768px){.page{padding:7px}.hero{padding:11px;margin-bottom:9px;border-radius:17px}.hero h1{font-size:18px}.hero p{font-size:12px}.badge{font-size:10px;padding:5px 9px}.summaryBoxes{grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:9px}.summaryBox{min-height:66px;border-radius:13px;padding:7px 3px}.summaryBox span{font-size:10px;margin-bottom:3px}.summaryBox strong{font-size:21px}.summaryBox small{font-size:8px;margin-top:3px}.grid,.editVehicle{grid-template-columns:1fr}.card{padding:10px;border-radius:16px}.card h2{font-size:15px}.vehicleMain h2{font-size:15px}.vehicleMain p{font-size:11px}.card button{padding:8px 10px;font-size:12px}.docs{grid-template-columns:1fr}.vehiclesTop{flex-direction:column;align-items:stretch}.vehiclesTop h2{margin-bottom:2px}.search{min-width:unset}.alertItem{border-radius:13px}.alertItem b{font-size:12px}.alertDetails{padding:10px}.vehicleActions button{flex:1}.addCard,.selectedAlerts{padding:10px}}@media(max-width:420px){.page{padding:6px}.hero h1{font-size:17px}.summaryBoxes{gap:6px}.summaryBox{min-height:58px;border-radius:12px;padding:6px 2px}.summaryBox span{font-size:9px}.summaryBox strong{font-size:19px}.summaryBox small{font-size:7.5px}.vehicleStats{justify-content:flex-end}.miniBadge,.pill{font-size:10px;padding:4px 8px}.card input,.card select{padding:9px 10px;font-size:12px}.sectionHead h2,.card h2{font-size:14px}}
+@media (max-width: 768px) {
+  html, body, #root {
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 100%;
+    padding: 8px;
+  }
+
+  .grid,
+  .editVehicle,
+  .docs {
+    display: grid;
+    grid-template-columns: 1fr !important;
+    width: 100%;
+  }
+
+  .hero,
+  .card,
+  .addCard,
+  .selectedAlerts {
+    width: 100%;
+  }
+
+  input,
+  select,
+  button {
+    max-width: 100%;
+  }
+
+  .vehiclesTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search {
+    min-width: 0;
+    width: 100%;
+  }
+}
