@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import './style.css';
 
-const APP_NAME = 'Sanjay Singh Vehicle Document Tracking System';
+const APP_NAME = 'Realtime Vehicle Document Tracking System';
 const VEHICLE_CATEGORIES = ['Bike', 'Car', 'Auto', 'Tempo', 'Mini Truck'];
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
