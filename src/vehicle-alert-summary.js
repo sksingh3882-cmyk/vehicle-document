@@ -1,6 +1,6 @@
 (function () {
   const STORAGE_KEY = 'vehicle_document_expiry_app_supabase_v1';
-  const state = { filter: 'green', popup: null };
+  const state = { filter: 'green' };
 
   function readVehicles() {
     try {
@@ -18,24 +18,6 @@
     const expiry = new Date(dateString);
     expiry.setHours(0, 0, 0, 0);
     return Math.ceil((expiry - today) / 86400000);
-  }
-
-  function formatDate(value) {
-    if (!value) return 'Date missing';
-    try {
-      return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return value;
-    }
-  }
-
-  function statusLabel(expiryDate) {
-    const days = daysLeft(expiryDate);
-    if (days === null) return 'Date missing';
-    if (days < 0) return 'Failed ' + Math.abs(days) + ' days ago';
-    if (days === 0) return 'Failed today';
-    if (days <= 30) return days + ' days left';
-    return days + ' days left';
   }
 
   function docMatches(doc, filter) {
@@ -101,6 +83,14 @@
     return panel;
   }
 
+  function openPremiumPopup(vehicle) {
+    if (window.openVehicleDetailPopup) {
+      window.openVehicleDetailPopup(vehicle);
+    } else {
+      alert((vehicle.vehicleNo || 'Vehicle') + ' details loading. Please refresh once.');
+    }
+  }
+
   function renderPanel() {
     hideOldDocumentPanel();
     updateSummaryBoxes();
@@ -119,39 +109,10 @@
       item.style.width = '100%';
       item.style.textAlign = 'left';
       item.style.background = '#fbfdff';
-      item.innerHTML = '<div><b>' + (vehicle.vehicleNo || 'Vehicle No Missing') + ' - ' + (vehicle.category || 'Category') + ' - ' + (vehicle.model || 'Model not added') + '</b><small>' + (vehicle.owner || 'Owner not added') + (vehicle.mobile ? ' • ' + vehicle.mobile : '') + '</small><small>' + docs.length + ' document(s) in this category. Tap to view.</small></div>';
-      item.onclick = () => openPopup(vehicle, docs);
+      item.innerHTML = '<div><b>' + (vehicle.vehicleNo || 'Vehicle No Missing') + '</b><small>' + docs.length + ' document(s) in this alert. Tap vehicle number to view full details.</small></div>';
+      item.onclick = () => openPremiumPopup(vehicle);
       panel.appendChild(item);
     });
-  }
-
-  function openPopup(vehicle, docs) {
-    closePopup();
-    const overlay = document.createElement('div');
-    overlay.id = 'vehicleAlertPopup';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.62);z-index:99999;padding:14px;display:flex;align-items:center;justify-content:center;';
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.style.cssText = 'width:100%;max-width:460px;max-height:86vh;overflow:auto;border-radius:18px;';
-    card.innerHTML = '<div class="sectionHead"><h2>' + (vehicle.vehicleNo || 'Vehicle') + '</h2><button class="ghostBtn" type="button" data-close-alert-popup>Close</button></div><p style="margin:0 0 8px;color:#64748b;font-size:12px">' + (vehicle.category || 'Category') + ' • ' + (vehicle.model || 'Model not added') + '<br>' + (vehicle.owner || 'Owner not added') + (vehicle.mobile ? ' • ' + vehicle.mobile : '') + '</p>';
-    docs.forEach((doc) => {
-      const row = document.createElement('div');
-      row.className = 'alertItem';
-      row.innerHTML = '<div><b>' + (doc.name || 'Document') + '</b><small>' + formatDate(doc.expiryDate) + ' • ' + statusLabel(doc.expiryDate) + '</small></div>';
-      card.appendChild(row);
-    });
-    overlay.appendChild(card);
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay || event.target.closest('[data-close-alert-popup]')) closePopup();
-    });
-    document.body.appendChild(overlay);
-    state.popup = overlay;
-  }
-
-  function closePopup() {
-    const old = document.getElementById('vehicleAlertPopup');
-    if (old) old.remove();
-    state.popup = null;
   }
 
   document.addEventListener('click', (event) => {
