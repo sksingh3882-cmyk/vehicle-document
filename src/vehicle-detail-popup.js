@@ -137,10 +137,10 @@
         .info{
           border:2px solid #bfdbfe;
           border-radius:16px;
-          padding:18px;
+          padding:12px;
           display:grid;
           grid-template-columns:1fr 1fr;
-          gap:18px;
+          gap:10px;
           margin-bottom:20px;
         }
 
@@ -152,7 +152,7 @@
         }
 
         .item div{
-          font-size:22px;
+          font-size:18px;
           font-weight:800;
         }
 
