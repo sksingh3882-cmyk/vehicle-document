@@ -185,24 +185,24 @@
           margin-top:14px;
           border:2px solid #bfdbfe;
           border-radius:16px;
-          padding:14px;
+          padding:10px;
           text-align:center;
         }
 
         .footer h1{
           margin:0;
-          font-size:30px;
+          font-size:22px;
         }
 
         .footer h2{
           margin:10px 0 4px;
-          font-size:18px;
+          font-size:14px;
         }
 
         .footer p{
           margin:0;
           color:#2563eb;
-          font-size:20px;
+          font-size:14px;
           font-weight:900;
         }
 
