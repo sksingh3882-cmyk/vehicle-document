@@ -1,16 +1,505 @@
-(function(){
-const KEY='vehicle_document_expiry_app_supabase_v1',BANNER='/popup-banner.png';
-const vehicles=()=>{try{const d=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(d)?d:[]}catch{return[]}};
-const esc=v=>String(v||'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const find=t=>{const u=String(t||'').toUpperCase();return vehicles().find(v=>v.vehicleNo&&u.includes(String(v.vehicleNo).toUpperCase()))};
-function daysLeft(d){if(!d)return null;const a=new Date(),b=new Date(d);a.setHours(0,0,0,0);b.setHours(0,0,0,0);return Math.ceil((b-a)/86400000)}
-function leftText(d){const n=daysLeft(d);if(n===null)return'Date missing';if(n<0)return Math.abs(n)+' days expired';if(n===0)return'expires today';return n+' days left'}
-function validity(d){const t=leftText(d);return t==='Date missing'?'':' <span style="color:#dc2626;font-size:13px;font-weight:700">('+t+')</span>'}
-function fmt(d){if(!d)return'Date missing';try{return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return d}}
-function docRows(v,pdf){return(v.docs||[]).map(doc=>{const name=esc(doc.name||'Document'),date=esc(fmt(doc.expiryDate)),left=esc(leftText(doc.expiryDate));if(pdf)return'<tr><td>'+name+'</td><td>'+date+'</td><td class="red">'+left+'</td></tr>';return'<div style="padding:8px 0;border-bottom:1px solid #e2e8f0"><b>'+name+'</b><br><small>'+date+validity(doc.expiryDate)+'</small></div>'}).join('')}
-function pdfHtml(v){return'<!doctype html><html><head><title>Vehicle Document PDF</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>@page{size:A4 portrait;margin:4mm}body{margin:0;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#0f172a}.sheet{max-width:760px;margin:auto;padding:8px}.banner{width:100%;height:150px;object-fit:cover;object-position:center;border-radius:10px;display:block;margin-bottom:7px}.title{text-align:center;font-size:17px;font-weight:900;margin:5px 0 8px}.info{border:1px solid #bfdbfe;border-radius:10px;padding:7px 9px;display:grid;grid-template-columns:1fr 1fr;gap:5px 14px;margin-bottom:7px}.item{display:grid;grid-template-columns:25px 1fr;gap:6px;align-items:center}.ico{width:24px;height:24px;border-radius:50%;background:#eff6ff;border:1px solid #bfdbfe;display:flex;align-items:center;justify-content:center;font-size:13px}.lbl{font-size:9px;font-weight:900;color:#475569}.val{font-size:12px;font-weight:900;margin-top:1px}.docHead{font-size:13px;font-weight:900;margin:5px 0 5px}.tbl{width:100%;border-collapse:collapse;border:1px solid #dbeafe;border-radius:8px;overflow:hidden}.tbl th{background:#f8fbff;color:#64748b;font-size:10px;padding:5px;border:1px solid #dbeafe}.tbl td{font-size:11px;font-weight:800;padding:6px 7px;border:1px solid #dbeafe;text-align:center}.tbl td:first-child{text-align:left}.red{color:#dc2626}.meta{display:flex;justify-content:space-between;font-size:9px;font-weight:800;color:#475569;margin:7px 3px}.footer{border:1px solid #bfdbfe;border-radius:10px;text-align:center;padding:8px;margin-top:7px}.footer h2{font-size:15px;margin:0 0 3px}.footer h3{font-size:11px;margin:0 0 2px}.footer p{font-size:10px;color:#2563eb;font-weight:900;margin:0}.printBtn{position:fixed;right:14px;bottom:14px;background:#2563eb;color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:900}@media print{html,body{width:210mm;height:297mm;overflow:hidden}.printBtn{display:none}.sheet{padding:0;}.banner{height:122px;margin-bottom:5px}.title{font-size:15px;margin:4px 0 6px}.info{padding:5px 7px;gap:4px 12px;margin-bottom:5px}.ico{width:21px;height:21px;font-size:11px}.lbl{font-size:8px}.val{font-size:10.5px}.docHead{font-size:11px;margin:4px 0}.tbl th{font-size:8.5px;padding:3px}.tbl td{font-size:9.5px;padding:4px}.meta{font-size:8px;margin:5px 2px}.footer{padding:6px;margin-top:5px}.footer h2{font-size:12px}.footer h3{font-size:9px}.footer p{font-size:9px}}@media(max-width:650px){.info{grid-template-columns:1fr 1fr}.val{font-size:11px}.tbl td{font-size:10px}}</style></head><body><main class="sheet"><img class="banner" src="'+BANNER+'"><div class="title">VEHICLE DOCUMENT REPORT</div><section class="info"><div class="item"><div class="ico">👤</div><div><div class="lbl">Name</div><div class="val">'+esc(v.owner||v.submittedBy||'Not added')+'</div></div></div><div class="item"><div class="ico">🚘</div><div><div class="lbl">Vehicle No.</div><div class="val">'+esc(v.vehicleNo||'Missing')+'</div></div></div><div class="item"><div class="ico">📞</div><div><div class="lbl">Mobile No.</div><div class="val">'+esc(v.mobile||'Not added')+'</div></div></div><div class="item"><div class="ico">🚚</div><div><div class="lbl">Model</div><div class="val">'+esc(v.model||v.category||'Not added')+'</div></div></div></section><div class="docHead">📋 Document Details</div><table class="tbl"><thead><tr><th>Document</th><th>Expiry Date</th><th>Validity</th></tr></thead><tbody>'+docRows(v,true)+'</tbody></table><div class="meta"><div>Report Generated On:<br>'+new Date().toLocaleString('en-IN')+'</div><div>Report Generated By:<br>vehicle-document-live.vercel.app</div></div><footer class="footer"><h2>Thank You!</h2><h3>Realtime Vehicle Document Tracking System</h3><p>By Sanjay Singh</p></footer></main><button class="printBtn" onclick="window.print()">Save PDF</button></body></html>'}
-function downloadPdf(v){const w=window.open('','_blank');if(!w)return alert('Popup blocked. Please allow pop-ups and try again.');w.document.write(pdfHtml(v));w.document.close();setTimeout(()=>{try{w.focus();w.print()}catch(e){}},800)}
-function openPopup(v){const old=document.getElementById('simpleVehiclePopup');if(old)old.remove();const wrap=document.createElement('div');wrap.id='simpleVehiclePopup';wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999999;display:flex;align-items:center;justify-content:center;padding:10px';wrap.innerHTML='<div style="background:#fff;width:100%;max-width:420px;border-radius:18px;overflow:hidden;position:relative;max-height:85vh;overflow:auto"><img src="'+BANNER+'" style="width:100%;display:block"><button id="closeVehiclePopup" style="position:absolute;top:8px;right:8px;border:none;background:#fff;border-radius:50%;width:32px;height:32px;font-size:20px">×</button><div style="padding:14px"><div style="margin-bottom:12px"><b>Name:</b> '+esc(v.owner||v.submittedBy||'Not added')+'<br><b>Mobile:</b> '+esc(v.mobile||'Not added')+'<br><b>Vehicle:</b> '+esc(v.vehicleNo||'Missing')+'</div><h3 style="margin:0 0 10px">Document Details</h3>'+docRows(v,false)+'<div style="border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px;text-align:center"><b>Realtime Vehicle Document Tracking System</b><br><span style="color:#2563eb;font-weight:900">By Sanjay Singh</span></div><button id="popupDownloadPdf" style="width:100%;margin-top:14px;background:#2563eb;color:white;border:0;border-radius:14px;padding:13px;font-size:16px;font-weight:900">Download PDF</button></div></div>';document.body.appendChild(wrap);wrap.onclick=e=>{if(e.target===wrap||e.target.id==='closeVehiclePopup')wrap.remove();if(e.target.id==='popupDownloadPdf'){e.preventDefault();e.stopPropagation();downloadPdf(v)}}}
-function attach(){document.querySelectorAll('.upVehicle,.vehicleAlertItem').forEach(el=>{if(el.dataset.popupReady)return;el.dataset.popupReady='1';el.style.cursor='pointer';el.addEventListener('click',e=>{if(e.target.closest('button,a,input'))return;const v=find(el.textContent||'');if(v){e.stopPropagation();openPopup(v)}},true)})}
-window.openVehicleDetailPopup=openPopup;window.openPopupStyleVehiclePdf=downloadPdf;setInterval(attach,1000);
+(function () {
+  const STORAGE_KEY = 'vehicle_document_expiry_app_supabase_v1';
+  const BANNER = '/popup-banner.png';
+
+  function vehicles() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  function esc(v) {
+    return String(v || '');
+  }
+
+  function findVehicle(text) {
+    const upper = String(text || '').toUpperCase();
+    return vehicles().find(v =>
+      upper.includes(String(v.vehicleNo || '').toUpperCase())
+    );
+  }
+
+  function daysLeft(date) {
+    if (!date) return null;
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const d = new Date(date);
+    d.setHours(0,0,0,0);
+
+    return Math.ceil((d - today) / 86400000);
+  }
+
+  function formatDate(date) {
+    if (!date) return 'Date missing';
+
+    try {
+      return new Date(date).toLocaleDateString('en-IN',{
+        day:'2-digit',
+        month:'short',
+        year:'numeric'
+      });
+    } catch {
+      return date;
+    }
+  }
+
+  function validity(date) {
+    const d = daysLeft(date);
+
+    if (d === null) {
+      return {
+        text:'Missing',
+        color:'#64748b'
+      };
+    }
+
+    if (d < 0) {
+      return {
+        text:`${Math.abs(d)} days expired`,
+        color:'#dc2626'
+      };
+    }
+
+    return {
+      text:`${d} days left`,
+      color:'#16a34a'
+    };
+  }
+
+  function pdfRows(vehicle) {
+    return (vehicle.docs || []).map(doc => {
+      const v = validity(doc.expiryDate);
+
+      return `
+      <tr>
+        <td>${esc(doc.name)}</td>
+        <td>${formatDate(doc.expiryDate)}</td>
+        <td style="color:${v.color};font-weight:700">
+          ${v.text}
+        </td>
+      </tr>
+      `;
+    }).join('');
+  }
+
+  function openPdf(vehicle) {
+
+    const html = `
+    <!doctype html>
+    <html>
+    <head>
+      <title>Vehicle Report</title>
+
+      <style>
+
+        @page{
+          size:A4;
+          margin:10mm;
+        }
+
+        *{
+          box-sizing:border-box;
+        }
+
+        body{
+          margin:0;
+          font-family:Arial,sans-serif;
+          background:#fff;
+          color:#111827;
+        }
+
+        .page{
+          width:100%;
+        }
+
+        .banner{
+          width:100%;
+          border-radius:16px;
+          overflow:hidden;
+        }
+
+        .banner img{
+          width:100%;
+          display:block;
+        }
+
+        .title{
+          text-align:center;
+          font-size:30px;
+          font-weight:900;
+          margin:18px 0;
+        }
+
+        .info{
+          border:2px solid #bfdbfe;
+          border-radius:16px;
+          padding:18px;
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:18px;
+          margin-bottom:20px;
+        }
+
+        .item small{
+          display:block;
+          color:#64748b;
+          font-size:14px;
+          margin-bottom:4px;
+        }
+
+        .item div{
+          font-size:22px;
+          font-weight:800;
+        }
+
+        .section{
+          font-size:24px;
+          font-weight:900;
+          margin:18px 0 14px;
+        }
+
+        table{
+          width:100%;
+          border-collapse:collapse;
+        }
+
+        th{
+          background:#2563eb;
+          color:white;
+          padding:14px;
+          font-size:16px;
+        }
+
+        td{
+          border:1px solid #cbd5e1;
+          padding:14px;
+          font-size:16px;
+          font-weight:700;
+        }
+
+        .footer{
+          margin-top:28px;
+          border:2px solid #bfdbfe;
+          border-radius:16px;
+          padding:20px;
+          text-align:center;
+        }
+
+        .footer h1{
+          margin:0;
+          font-size:38px;
+        }
+
+        .footer h2{
+          margin:10px 0 4px;
+          font-size:24px;
+        }
+
+        .footer p{
+          margin:0;
+          color:#2563eb;
+          font-size:20px;
+          font-weight:900;
+        }
+
+      </style>
+    </head>
+
+    <body>
+
+      <div class="page">
+
+        <div class="banner">
+          <img src="${BANNER}">
+        </div>
+
+        <div class="title">
+          VEHICLE DOCUMENT REPORT
+        </div>
+
+        <div class="info">
+
+          <div class="item">
+            <small>Name</small>
+            <div>${esc(vehicle.owner || 'Not added')}</div>
+          </div>
+
+          <div class="item">
+            <small>Vehicle No</small>
+            <div>${esc(vehicle.vehicleNo)}</div>
+          </div>
+
+          <div class="item">
+            <small>Mobile No</small>
+            <div>${esc(vehicle.mobile || 'Not added')}</div>
+          </div>
+
+          <div class="item">
+            <small>Model</small>
+            <div>${esc(vehicle.model || 'Not added')}</div>
+          </div>
+
+        </div>
+
+        <div class="section">
+          📋 Document Details
+        </div>
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Expiry Date</th>
+              <th>Validity</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${pdfRows(vehicle)}
+          </tbody>
+
+        </table>
+
+        <div class="footer">
+          <h1>Thank You!</h1>
+          <h2>Realtime Vehicle Document Tracking System</h2>
+          <p>By Sanjay Singh</p>
+        </div>
+
+      </div>
+
+      <script>
+        setTimeout(() => {
+          window.print();
+        }, 700);
+      <\/script>
+
+    </body>
+    </html>
+    `;
+
+    const w = window.open('', '_blank');
+
+    if (!w) {
+      alert('Popup blocked');
+      return;
+    }
+
+    w.document.write(html);
+    w.document.close();
+  }
+
+  function popupDocs(vehicle) {
+    return (vehicle.docs || []).map(doc => {
+
+      const v = validity(doc.expiryDate);
+
+      return `
+      <div style="
+        padding:12px 0;
+        border-bottom:1px solid #e2e8f0;
+      ">
+
+        <div style="
+          font-size:18px;
+          font-weight:800;
+        ">
+          ${esc(doc.name)}
+        </div>
+
+        <div style="
+          margin-top:4px;
+          font-size:16px;
+        ">
+          ${formatDate(doc.expiryDate)}
+
+          <span style="
+            color:${v.color};
+            font-weight:800;
+          ">
+            (${v.text})
+          </span>
+        </div>
+
+      </div>
+      `;
+
+    }).join('');
+  }
+
+  function openPopup(vehicle) {
+
+    const old = document.getElementById('vehiclePopup');
+
+    if (old) old.remove();
+
+    const wrap = document.createElement('div');
+
+    wrap.id = 'vehiclePopup';
+
+    wrap.style.cssText = `
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.6);
+      z-index:999999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:12px;
+    `;
+
+    wrap.innerHTML = `
+    <div style="
+      width:100%;
+      max-width:420px;
+      background:white;
+      border-radius:20px;
+      overflow:hidden;
+      max-height:90vh;
+      overflow:auto;
+      position:relative;
+    ">
+
+      <img src="${BANNER}" style="
+        width:100%;
+        display:block;
+      ">
+
+      <button id="closePopup" style="
+        position:absolute;
+        top:10px;
+        right:10px;
+        width:36px;
+        height:36px;
+        border:none;
+        border-radius:50%;
+        background:white;
+        font-size:24px;
+      ">
+        ×
+      </button>
+
+      <div style="padding:16px">
+
+        <div style="
+          font-size:18px;
+          line-height:1.7;
+          margin-bottom:18px;
+        ">
+
+          <b>Name:</b> ${esc(vehicle.owner || 'Not added')}<br>
+
+          <b>Mobile:</b> ${esc(vehicle.mobile || 'Not added')}<br>
+
+          <b>Vehicle:</b> ${esc(vehicle.vehicleNo)}
+
+        </div>
+
+        <div style="
+          font-size:24px;
+          font-weight:900;
+          margin-bottom:10px;
+        ">
+          Document Details
+        </div>
+
+        ${popupDocs(vehicle)}
+
+        <div style="
+          margin-top:20px;
+          text-align:center;
+          border-top:1px solid #e2e8f0;
+          padding-top:16px;
+        ">
+
+          <div style="
+            font-size:18px;
+            font-weight:900;
+          ">
+            Realtime Vehicle Document Tracking System
+          </div>
+
+          <div style="
+            color:#2563eb;
+            font-weight:900;
+            margin-top:4px;
+          ">
+            By Sanjay Singh
+          </div>
+
+        </div>
+
+        <button id="downloadPdfBtn" style="
+          width:100%;
+          margin-top:18px;
+          border:none;
+          background:#2563eb;
+          color:white;
+          padding:15px;
+          border-radius:14px;
+          font-size:18px;
+          font-weight:900;
+        ">
+          Download PDF
+        </button>
+
+      </div>
+
+    </div>
+    `;
+
+    document.body.appendChild(wrap);
+
+    wrap.onclick = (e) => {
+
+      if (
+        e.target === wrap ||
+        e.target.id === 'closePopup'
+      ) {
+        wrap.remove();
+      }
+
+      if (e.target.id === 'downloadPdfBtn') {
+        openPdf(vehicle);
+      }
+
+    };
+  }
+
+  function attach() {
+
+    document.querySelectorAll(
+      '.upVehicle,.vehicleAlertItem'
+    ).forEach(el => {
+
+      if (el.dataset.popupReady) return;
+
+      el.dataset.popupReady = '1';
+
+      el.style.cursor = 'pointer';
+
+      el.addEventListener('click', e => {
+
+        if (e.target.closest('button,a,input')) return;
+
+        const vehicle = findVehicle(el.textContent);
+
+        if (vehicle) {
+          e.stopPropagation();
+          openPopup(vehicle);
+        }
+
+      }, true);
+
+    });
+
+  }
+
+  setInterval(attach,1000);
+
 })();
