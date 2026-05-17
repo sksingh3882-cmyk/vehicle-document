@@ -82,5 +82,8 @@
       }, true);
     });
   }
+    window.openVehicleDetailPopup = openPopup;
+  window.openPopupStyleVehiclePdf = openPdf;
+
   setInterval(attach,1000);
 })();
