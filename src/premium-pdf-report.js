@@ -2,82 +2,27 @@
   const STORAGE_KEY = 'vehicle_document_expiry_app_supabase_v1';
   const BANNER = '/popup-banner.png';
 
-  function readVehicles() {
-    try {
-      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function esc(value) {
-    return String(value || '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  }
-
-  function formatDate(value) {
-    if (!value) return 'Date missing';
-    try {
-      return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return value;
-    }
-  }
-
-  function daysLeft(value) {
-    if (!value) return null;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const date = new Date(value);
-    date.setHours(0, 0, 0, 0);
-    return Math.ceil((date - today) / 86400000);
-  }
-
-  function status(value) {
-    const days = daysLeft(value);
-    if (days === null) return { label: 'Missing', days: '-', cls: 'neutral' };
-    if (days < 0) return { label: 'Expired', days: Math.abs(days) + ' days expired', cls: 'danger' };
-    if (days === 0) return { label: 'Expires Today', days: 'expires today', cls: 'danger' };
-    if (days <= 30) return { label: 'Expiring Soon', days: days + ' days left', cls: 'warn' };
-    return { label: 'Valid', days: days + ' days left', cls: 'ok' };
-  }
-
-  function vehicleFromText(text) {
-    const upper = String(text || '').toUpperCase();
-    return readVehicles().find((v) => v.vehicleNo && upper.includes(String(v.vehicleNo).toUpperCase()));
-  }
+  function readVehicles() { try { const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(data) ? data : []; } catch { return []; } }
+  function esc(value) { return String(value || '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function formatDate(value) { if (!value) return 'Date missing'; try { return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); } catch { return value; } }
+  function daysLeft(value) { if (!value) return null; const today = new Date(); today.setHours(0, 0, 0, 0); const date = new Date(value); date.setHours(0, 0, 0, 0); return Math.ceil((date - today) / 86400000); }
+  function status(value) { const days = daysLeft(value); if (days === null) return { label: 'Missing', days: '-', cls: 'neutral' }; if (days < 0) return { label: 'Expired', days: Math.abs(days) + ' days expired', cls: 'danger' }; if (days === 0) return { label: 'Expires Today', days: 'expires today', cls: 'danger' }; if (days <= 30) return { label: 'Expiring Soon', days: days + ' days left', cls: 'warn' }; return { label: 'Valid', days: days + ' days left', cls: 'ok' }; }
+  function vehicleFromText(text) { const upper = String(text || '').toUpperCase(); return readVehicles().find((v) => v.vehicleNo && upper.includes(String(v.vehicleNo).toUpperCase())); }
+  function latestVehicle() { return readVehicles()[0] || null; }
 
   function reportHtml(vehicle) {
     const docs = Array.isArray(vehicle.docs) ? vehicle.docs : [];
-    const rows = docs.length ? docs.map((doc) => {
-      const s = status(doc.expiryDate);
-      return '<tr><td><b>' + esc(doc.name || 'Document') + '</b></td><td>' + esc(formatDate(doc.expiryDate)) + '</td><td><span class="pill ' + s.cls + '">' + esc(s.label) + '</span></td><td><span class="days ' + s.cls + '">' + esc(s.days) + '</span></td></tr>';
-    }).join('') : '<tr><td colspan="4">No document details available.</td></tr>';
-
+    const rows = docs.length ? docs.map((doc) => { const s = status(doc.expiryDate); return '<tr><td><b>' + esc(doc.name || 'Document') + '</b></td><td>' + esc(formatDate(doc.expiryDate)) + '</td><td><span class="pill ' + s.cls + '">' + esc(s.label) + '</span></td><td><span class="days ' + s.cls + '">' + esc(s.days) + '</span></td></tr>'; }).join('') : '<tr><td colspan="4">No document details available.</td></tr>';
     const generated = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     return '<!doctype html><html><head><title>Vehicle Document Report</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{margin:0;background:#f8fbff;font-family:Arial,Helvetica,sans-serif;color:#0f172a}.sheet{max-width:900px;margin:0 auto;background:white;padding:22px}.banner{width:100%;border-radius:18px;display:block;margin-bottom:22px}.title{display:flex;align-items:center;justify-content:center;gap:18px;margin:10px 0 20px;font-size:30px;font-weight:900;color:#0f172a;text-transform:uppercase}.title:before,.title:after{content:"";height:2px;background:#2563eb;width:90px}.info{border:1.5px solid #93c5fd;border-radius:16px;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;background:#fbfdff}.infoBox{display:flex;gap:12px;align-items:center}.icon{width:42px;height:42px;border:1px solid #bfdbfe;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#eff6ff;color:#2563eb;font-size:20px}.label{font-size:13px;color:#475569;font-weight:700}.value{font-size:18px;font-weight:900;margin-top:4px}.section{font-size:18px;font-weight:900;margin:18px 0 10px}.table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #dbeafe;border-radius:12px;overflow:hidden}.table th{background:#2563eb;color:white;padding:12px;font-size:14px}.table td{padding:13px;border-bottom:1px solid #e2e8f0;text-align:center}.table td:first-child{text-align:left}.pill{display:inline-block;border-radius:999px;padding:6px 16px;font-weight:900}.pill.ok{background:#dcfce7;color:#15803d}.pill.warn{background:#fef3c7;color:#a16207}.pill.danger{background:#fee2e2;color:#dc2626}.pill.neutral{background:#e2e8f0;color:#475569}.days{font-weight:900}.days.ok,.days.warn,.days.danger{color:#dc2626}.meta{display:flex;justify-content:space-between;margin:20px 6px;color:#334155;font-size:13px}.thanks{border:1px solid #bfdbfe;border-radius:16px;background:#f8fbff;text-align:center;padding:26px;margin-top:22px}.check{width:54px;height:54px;margin:-54px auto 12px;background:#2563eb;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px}.thanks h1{font-size:38px;margin:0 0 14px}.thanks h2{font-size:21px;margin:0 0 8px}.thanks p{color:#2563eb;font-weight:900;margin:0}@media print{body{background:white}.sheet{padding:10px}.printBtn{display:none}}@media(max-width:650px){.sheet{padding:12px}.title{font-size:20px}.title:before,.title:after{width:35px}.info{grid-template-columns:1fr}.value{font-size:16px}.table th,.table td{font-size:12px;padding:8px}.thanks h1{font-size:28px}}.printBtn{position:fixed;right:18px;bottom:18px;background:#2563eb;color:white;border:0;border-radius:12px;padding:12px 16px;font-weight:900;box-shadow:0 12px 25px rgba(37,99,235,.25)}</style></head><body><main class="sheet"><img class="banner" src="' + BANNER + '" /><div class="title">Vehicle Document Report</div><section class="info"><div class="infoBox"><div class="icon">👤</div><div><div class="label">Name</div><div class="value">' + esc(vehicle.owner || vehicle.submittedBy || 'Not added') + '</div></div></div><div class="infoBox"><div class="icon">🚘</div><div><div class="label">Vehicle No.</div><div class="value">' + esc(vehicle.vehicleNo || 'Missing') + '</div></div></div><div class="infoBox"><div class="icon">📞</div><div><div class="label">Mobile No.</div><div class="value">' + esc(vehicle.mobile || 'Not added') + '</div></div></div><div class="infoBox"><div class="icon">🚚</div><div><div class="label">Model</div><div class="value">' + esc(vehicle.model || vehicle.category || 'Not added') + '</div></div></div></section><div class="section">📋 Document Details</div><table class="table"><thead><tr><th>Document</th><th>Expiry Date</th><th>Validity Status</th><th>Days Left</th></tr></thead><tbody>' + rows + '</tbody></table><div class="meta"><div><b>Report Generated On:</b><br>' + esc(generated) + '</div><div><b>Report Generated By:</b><br>vehicle-document-live.vercel.app</div></div><section class="thanks"><div class="check">✓</div><h1>Thank You!</h1><h2>Realtime Vehicle Document Tracking System</h2><p>By Sanjay Singh</p></section></main><button class="printBtn" onclick="window.print()">Download / Save PDF</button></body></html>';
   }
-
-  function openReport(vehicle) {
-    if (!vehicle) return alert('Vehicle data not found.');
-    const w = window.open('', '_blank');
-    if (!w) return alert('Popup blocked. Please allow pop-ups and try again.');
-    w.document.write(reportHtml(vehicle));
-    w.document.close();
-  }
-
+  function openReport(vehicle) { if (!vehicle) return alert('Vehicle data not found.'); const w = window.open('', '_blank'); if (!w) return alert('Popup blocked. Please allow pop-ups and try again.'); w.document.write(reportHtml(vehicle)); w.document.close(); }
   window.openPremiumVehicleReport = openReport;
-
   document.addEventListener('click', function (event) {
-    const button = event.target.closest('button');
-    if (!button) return;
-    if (!/Download PDF/i.test(button.textContent || '')) return;
-    const card = button.closest('.upVehicle,.vehicleCard,.alertItem,.vehicleAlertItem');
-    const vehicle = card ? vehicleFromText(card.textContent || '') : null;
-    if (vehicle) {
-      event.preventDefault();
-      event.stopPropagation();
-      openReport(vehicle);
-    }
+    const button = event.target.closest('button'); if (!button) return;
+    const text = button.textContent || ''; if (!/(Download PDF|PDF Report)/i.test(text)) return;
+    const card = button.closest('.upVehicle,.vehicleCard,.alertItem,.vehicleAlertItem,.card,section');
+    const vehicle = (card && vehicleFromText(card.textContent || '')) || latestVehicle();
+    if (vehicle) { event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation(); openReport(vehicle); }
   }, true);
 })();
