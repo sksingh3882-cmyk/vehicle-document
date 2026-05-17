@@ -182,21 +182,21 @@
         }
 
         .footer{
-          margin-top:28px;
+          margin-top:14px;
           border:2px solid #bfdbfe;
           border-radius:16px;
-          padding:20px;
+          padding:14px;
           text-align:center;
         }
 
         .footer h1{
           margin:0;
-          font-size:38px;
+          font-size:30px;
         }
 
         .footer h2{
           margin:10px 0 4px;
-          font-size:24px;
+          font-size:18px;
         }
 
         .footer p{
