@@ -1,6 +1,6 @@
 (function () {
   const STORAGE_KEY = 'vehicle_document_expiry_app_supabase_v1';
-  const state = { filter: 'green' };
+  const state = { filter: 'green', query: '' };
 
   function readVehicles() {
     try {
@@ -27,22 +27,71 @@
     return d !== null && d > 30;
   }
 
+  function vehicleText(vehicle) {
+    return [vehicle.vehicleNo, vehicle.owner, vehicle.submittedBy, vehicle.mobile, vehicle.model, vehicle.category]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+  }
+
   function getVehicleRows(filter) {
+    const query = state.query.trim().toLowerCase();
     return readVehicles()
       .map((vehicle) => {
         const docs = Array.isArray(vehicle.docs) ? vehicle.docs.filter((doc) => docMatches(doc, filter)) : [];
         return { vehicle, docs };
       })
       .filter((row) => row.docs.length > 0)
+      .filter((row) => !query || vehicleText(row.vehicle).includes(query))
       .sort((a, b) => String(a.vehicle.vehicleNo || '').localeCompare(String(b.vehicle.vehicleNo || '')));
   }
 
+  function addSearchStyles() {
+    if (document.getElementById('alertSearchStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'alertSearchStyles';
+    style.textContent = `
+      #alertVehicleSearchWrap{max-width:100%;margin:10px 0 12px;background:#fff;border:1px solid #dbeafe;border-radius:22px;padding:10px;box-shadow:0 8px 22px rgba(37,99,235,.08)}
+      #alertVehicleSearchBox{display:flex;align-items:center;gap:10px;background:#f8fbff;border:1px solid #dbeafe;border-radius:18px;padding:10px 12px}
+      #alertVehicleSearchBox span{font-size:22px;color:#64748b;line-height:1}
+      #alertVehicleSearchInput{width:100%;border:0;background:transparent;outline:none;font-size:16px;color:#0f172a;font-weight:700}
+      #alertVehicleSearchInput::placeholder{color:#94a3b8;font-weight:600}
+      #alertVehicleSearchClear{border:0;background:#eff6ff;color:#2563eb;font-weight:900;border-radius:14px;padding:8px 12px}
+      @media(max-width:768px){#alertVehicleSearchWrap{margin:8px 0 10px;border-radius:18px;padding:8px}#alertVehicleSearchInput{font-size:15px}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureSearch() {
+    addSearchStyles();
+    let wrap = document.getElementById('alertVehicleSearchWrap');
+    if (wrap) return wrap;
+    const target = document.querySelector('.summaryBoxes');
+    if (!target) return null;
+    wrap = document.createElement('div');
+    wrap.id = 'alertVehicleSearchWrap';
+    wrap.innerHTML = '<div id="alertVehicleSearchBox"><span>⌕</span><input id="alertVehicleSearchInput" type="search" placeholder="Search by vehicle number, owner name, mobile..." autocomplete="off" /><button id="alertVehicleSearchClear" type="button">Clear</button></div>';
+    target.insertAdjacentElement('afterend', wrap);
+    const input = wrap.querySelector('#alertVehicleSearchInput');
+    const clear = wrap.querySelector('#alertVehicleSearchClear');
+    input.value = state.query;
+    input.addEventListener('input', () => {
+      state.query = input.value;
+      renderPanel();
+    });
+    clear.addEventListener('click', () => {
+      state.query = '';
+      input.value = '';
+      renderPanel();
+    });
+    return wrap;
+  }
+
   function updateSummaryBoxes() {
-    const counts = {
-      red: getVehicleRows('red').length,
-      yellow: getVehicleRows('yellow').length,
-      green: getVehicleRows('green').length
-    };
+    const oldQuery = state.query;
+    state.query = '';
+    const counts = { red: getVehicleRows('red').length, yellow: getVehicleRows('yellow').length, green: getVehicleRows('green').length };
+    state.query = oldQuery;
     document.querySelectorAll('.summaryBox').forEach((box) => {
       const text = box.textContent || '';
       let key = '';
@@ -73,33 +122,32 @@
   function ensurePanel() {
     let panel = document.getElementById('vehicleAlertSummary');
     if (panel) return panel;
-    const target = document.querySelector('.summaryBoxes');
-    if (!target) return null;
+    const search = ensureSearch();
+    if (!search) return null;
     panel = document.createElement('section');
     panel.id = 'vehicleAlertSummary';
     panel.className = 'card alertDetails';
     panel.style.marginBottom = '10px';
-    target.insertAdjacentElement('afterend', panel);
+    search.insertAdjacentElement('afterend', panel);
     return panel;
   }
 
   function openPremiumPopup(vehicle) {
-    if (window.openVehicleDetailPopup) {
-      window.openVehicleDetailPopup(vehicle);
-    } else {
-      alert((vehicle.vehicleNo || 'Vehicle') + ' details loading. Please refresh once.');
-    }
+    if (window.openVehicleDetailPopup) window.openVehicleDetailPopup(vehicle);
+    else alert((vehicle.vehicleNo || 'Vehicle') + ' details loading. Please refresh once.');
   }
 
   function renderPanel() {
     hideOldDocumentPanel();
+    ensureSearch();
     updateSummaryBoxes();
     const panel = ensurePanel();
     if (!panel) return;
     const rows = getVehicleRows(state.filter);
-    panel.innerHTML = '<div class="sectionHead"><h2>' + selectedTitle() + ' (' + rows.length + ')</h2><button class="ghostBtn" type="button" data-refresh-alerts>Refresh</button></div>';
+    const suffix = state.query ? ' - Search Results' : '';
+    panel.innerHTML = '<div class="sectionHead"><h2>' + selectedTitle() + suffix + ' (' + rows.length + ')</h2><button class="ghostBtn" type="button" data-refresh-alerts>Refresh</button></div>';
     if (!rows.length) {
-      panel.insertAdjacentHTML('beforeend', '<div class="ok">No vehicles in this category.</div>');
+      panel.insertAdjacentHTML('beforeend', '<div class="ok">No vehicles found.</div>');
       return;
     }
     rows.forEach(({ vehicle, docs }) => {
