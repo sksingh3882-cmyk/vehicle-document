@@ -182,10 +182,9 @@
         }
 
         .footer{
-          margin-top:14px;
-          border:2px solid #bfdbfe;
+          margin-top:6px;
           border-radius:16px;
-          padding:10px;
+          padding:4px;
           text-align:center;
         }
 
@@ -202,7 +201,7 @@
         .footer p{
           margin:0;
           color:#2563eb;
-          font-size:14px;
+          font-size:11px;
           font-weight:900;
         }
 
