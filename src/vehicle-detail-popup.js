@@ -141,7 +141,7 @@
           display:grid;
           grid-template-columns:1fr 1fr;
           gap:10px;
-          margin-bottom:20px;
+          margin-bottom:10px;
         }
 
         .item small{
@@ -157,7 +157,7 @@
         }
 
         .section{
-          font-size:24px;
+          font-size:14px;
           font-weight:900;
           margin:18px 0 14px;
         }
@@ -400,7 +400,7 @@
         </div>
 
         <div style="
-          font-size:24px;
+          font-size:22px;
           font-weight:900;
           margin-bottom:10px;
         ">
