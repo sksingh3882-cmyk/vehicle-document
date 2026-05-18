@@ -36,7 +36,21 @@
     document.body.appendChild(wrap);wrap.onclick=e=>{if(e.target===wrap||e.target.id==='closeUserNoPdfPopup')wrap.remove()};
   }
 
-  function render(){const panel=ensurePanel();if(!panel)return;const counts={red:vehicleRows('red').length,yellow:vehicleRows('yellow').length,green:vehicleRows('green').length};const rows=vehicleRows(state.filter);panel.innerHTML=`<div id="userAlertBoxes"><button class="userAlertBox red" data-user-alert="red"><span>Red Alert</span><b>${counts.red}</b><small>Failed Vehicles</small></button><button class="userAlertBox yellow" data-user-alert="yellow"><span>Yellow Alert</span><b>${counts.yellow}</b><small>Expiring Vehicles</small></button><button class="userAlertBox green" data-user-alert="green"><span>Green Alert</span><b>${counts.green}</b><small>Valid Vehicles</small></button></div><div id="userAlertList"><h3 class="userAlertTitle">${label(state.filter)} - ${sub(state.filter)} Vehicles (${rows.length})</h3></div>`;const list=panel.querySelector('#userAlertList');if(!rows.length){list.insertAdjacentHTML('beforeend','<div class="userAlertEmpty">No vehicles found.</div>');return}rows.forEach(({vehicle})=>{const btn=document.createElement('button');btn.className='userAlertVehicle';btn.type='button';btn.textContent=vehicle.vehicleNo||'Vehicle No Missing';btn.onclick=()=>openNoPdfPopup(vehicle);list.appendChild(btn)})}
+  function render(){const panel=ensurePanel();if(!panel)return;const counts={red:vehicleRows('red').length,yellow:vehicleRows('yellow').length,green:vehicleRows('green').length};const rows=vehicleRows(state.filter);panel.innerHTML=`<div id="userAlertBoxes"><button class="userAlertBox red" data-user-alert="red"><span>Red Alert</span><b>${counts.red}</b><small>Failed Vehicles</small></button><button class="userAlertBox yellow" data-user-alert="yellow"><span>Yellow Alert</span><b>${counts.yellow}</b><small>Expiring Vehicles</small></button><button class="userAlertBox green" data-user-alert="green"><span>Green Alert</span><b>${counts.green}</b><small>Valid Vehicles</small></button></div><div id="userAlertList"><h3 class="userAlertTitle">${label(state.filter)} - ${sub(state.filter)} Vehicles (${rows.length})</h3></div>`;const list=panel.querySelector('#userAlertList');if(!rows.length){list.insertAdjacentHTML('beforeend','<div class="userAlertEmpty">No vehicles found.</div>');return}rows.forEach(({vehicle})=>{const btn=document.createElement('button');btn.className='userAlertVehicle';btn.type='button';btn.innerHTML=`
+
+<div style="font-size:15px;font-weight:900;color:#0f172a">
+
+  ${esc(vehicle.vehicleNo||'Vehicle No Missing')}
+
+</div>
+
+<div style="font-size:11px;color:#dc2626;font-weight:800;margin-top:4px">
+
+  Tap to View Document Validity
+
+</div>
+
+`; btn.onclick=()=>openNoPdfPopup(vehicle);list.appendChild(btn)})}
 
   document.addEventListener('click',e=>{const box=e.target.closest('[data-user-alert]');if(box){state.filter=box.dataset.userAlert;render()}},true);
   setInterval(render,1200);
