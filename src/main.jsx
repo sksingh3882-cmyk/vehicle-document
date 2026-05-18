@@ -97,9 +97,98 @@ function App() {
   function removeDoc(vehicleId, index) { setVehicles((prev) => prev.map((vehicle) => vehicle.id === vehicleId ? touchVehicle({ ...vehicle, docs: (vehicle.docs || []).filter((_, i) => i !== index) }) : vehicle)); }
   function sendWhatsApp(vehicle, docItem = null) { const number = whatsappNumber(vehicle.mobile); const inputNumber = number ? number : whatsappNumber(window.prompt('Saved mobile missing. Enter WhatsApp number.', '') || ''); if (!inputNumber) return; window.open('https://wa.me/' + inputNumber + '?text=' + encodeURIComponent(buildWhatsAppText(vehicle, docItem)), '_blank', 'noopener,noreferrer'); }
   function shareAllAlerts() { const text = totalAlerts ? allAlerts.map(({ vehicle, docItem, status }) => vehicle.vehicleNo + ' - ' + (vehicle.category || 'Category') + ' - ' + (vehicle.model || 'Model not added') + ' - ' + docItem.name + ': ' + formatDate(docItem.expiryDate) + ' (' + status.label + ')').join('\n') : 'No urgent vehicle document alerts.'; window.open('https://wa.me/?text=' + encodeURIComponent(APP_NAME + '\n\n' + text), '_blank', 'noopener,noreferrer'); }
+  function downloadBackup() {
+  const clean = vehicles.map(cleanVehicle);
+
+  const backup = {
+    app: APP_NAME,
+    backupDate: new Date().toISOString(),
+    totalVehicles: clean.length,
+    vehicles: clean
+  };
+
+  const blob = new Blob(
+    [JSON.stringify(backup, null, 2)],
+    { type: 'application/json' }
+  );
+
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download =
+    'vehicle-backup-' +
+    new Date().toISOString().slice(0, 10) +
+    '.json';
+
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
+async function restoreBackup(event) {
+  const file =
+    event.target.files &&
+    event.target.files[0];
+
+  if (!file) return;
+
+  if (
+    !confirm(
+      'Restore backup? Current data replace ho sakta hai.'
+    )
+  ) {
+    event.target.value = '';
+    return;
+  }
+
+  const text = await file.text();
+
+  const parsed = safeParse(text, null);
+
+  const restoredVehicles = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.vehicles)
+    ? parsed.vehicles
+    : null;
+
+  if (!restoredVehicles) {
+    alert('Invalid backup file');
+    event.target.value = '';
+    return;
+  }
+
+  const clean = restoredVehicles.map(cleanVehicle);
+
+  setVehicles(clean);
+
+  saveLocalVehicles(clean);
+
+  await saveCloud(clean, 'Backup restored');
+
+  alert('Backup restored successfully');
+
+  event.target.value = '';
+}
 
   return <div className="page">
-    <header className="hero"><div><div className="badge">Vehicle Document Alert</div><h1>{APP_NAME}</h1><p>Local save + Supabase cloud sync + WhatsApp alert share.</p><p className={cloudStatus.includes('failed') || cloudStatus.includes('error') || cloudStatus.includes('missing') ? 'cloudStatus warn' : 'cloudStatus'}>{cloudStatus}</p><button className="syncBtn" onClick={() => saveCloud(vehicles, 'Manual cloud sync')}>Sync Now</button></div><button className="alertBox" onClick={shareAllAlerts}><span>Total Alerts</span><strong>{totalAlerts}</strong></button></header>
+    <header className="hero"><div><div className="badge">Vehicle Document Alert</div><h1>{APP_NAME}</h1><p>Local save + Supabase cloud sync + WhatsApp alert share.</p><p className={cloudStatus.includes('failed') || cloudStatus.includes('error') || cloudStatus.includes('missing') ? 'cloudStatus warn' : 'cloudStatus'}>{cloudStatus}</p><button className="syncBtn" onClick={() => saveCloud(vehicles, 'Manual cloud sync')}>Sync Now</button> <button
+  className="syncBtn"
+  onClick={downloadBackup}
+>
+  Download Backup
+</button>
+
+<label className="syncBtn backupUpload">
+  Restore Backup
+
+  <input
+    type="file"
+    accept="application/json"
+    onChange={restoreBackup}
+    style={{ display: 'none' }}
+  />
+</label> </div><button className="alertBox" onClick={shareAllAlerts}><span>Total Alerts</span><strong>{totalAlerts}</strong></button></header>
     <section className="summaryBoxes"><SummaryBox tone="redBox" title="Red Alert" count={alertCounts.red} note="Failed documents" active={alertFilter === 'red'} onClick={() => setAlertFilter('red')} /><SummaryBox tone="yellowBox" title="Yellow Alert" count={alertCounts.yellow} note="Expire in 30 days" active={alertFilter === 'yellow'} onClick={() => setAlertFilter('yellow')} /><SummaryBox tone="greenBox" title="Green Alert" count={alertCounts.green} note="Valid documents" active={alertFilter === 'green'} onClick={() => setAlertFilter('green')} /></section>
     <section className="card alertDetails"><div className="sectionHead"><h2>{selectedTitle} ({filteredAlertDocs.length})</h2><button className="ghostBtn" onClick={() => setAlertFilter('red')}>Clear</button></div>{filteredAlertDocs.length === 0 ? <div className="ok">No data in this category.</div> : filteredAlertDocs.map(({ vehicle, docItem, status }, index) => <div className="alertItem actionAlert" key={vehicle.id + docItem.name + index}><div><b>{vehicle.vehicleNo} - {vehicle.category || 'Category'} - {vehicle.model || 'Model not added'}</b><small>{docItem.name}: {formatDate(docItem.expiryDate)} • {status.label}</small><small>{vehicle.owner || 'Owner not added'} {vehicle.mobile ? '• ' + vehicle.mobile : '• Mobile missing'}</small></div><button className="waBtn" onClick={() => sendWhatsApp(vehicle, docItem)}>WhatsApp</button></div>)}</section>
     <section className="grid"><form className="card addCard" onSubmit={addVehicle}><h2>Add Vehicle</h2><select value={form.category} onChange={(e) => updateForm('category', e.target.value)}>{VEHICLE_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}</select><input placeholder="Vehicle No. JH05AB1234" value={form.vehicleNo} onChange={(e) => updateForm('vehicleNo', e.target.value.toUpperCase())} /><input placeholder="Vehicle Model" value={form.model} onChange={(e) => updateForm('model', e.target.value)} /><input placeholder="Owner / Driver Name" value={form.owner} onChange={(e) => updateForm('owner', e.target.value)} /><input placeholder="WhatsApp Mobile" inputMode="tel" value={form.mobile} onChange={(e) => updateForm('mobile', e.target.value)} /><FieldLabel text="Last Vehicle Service"><input type="date" value={form.lastService} onChange={(e) => updateForm('lastService', e.target.value)} /></FieldLabel><FieldLabel text="Next Service"><input type="date" value={form.nextService} onChange={(e) => updateForm('nextService', e.target.value)} /></FieldLabel><input placeholder="Next Service Km" inputMode="numeric" value={form.nextServiceKm} onChange={(e) => updateForm('nextServiceKm', e.target.value)} /><button>Add Vehicle</button></form><div className="card selectedAlerts"><div className="sectionHead"><h2>Expiry Alerts</h2><button className="ghostBtn" onClick={shareAllAlerts}>Share</button></div>{totalAlerts === 0 ? <div className="ok">No urgent alerts.</div> : allAlerts.map(({ vehicle, docItem, status }, index) => <div className="alertItem" key={vehicle.id + docItem.name + index}><div><b>{vehicle.vehicleNo} - {vehicle.category || 'Category'} - {vehicle.model || 'Model not added'} - {docItem.name}</b><small>{formatDate(docItem.expiryDate)}</small></div><span className={'pill ' + status.tone}>{status.label}</span></div>)}</div></section>
