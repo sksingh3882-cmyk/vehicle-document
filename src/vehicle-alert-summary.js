@@ -133,7 +133,7 @@
   }
 
   function openPremiumPopup(vehicle) {
-    if (window.openVehicleDetailPopup) window.openVehicleDetailPopup(vehicle);
+    if (window.openVehicleDetailPopup) window.openVehicleDetailPopup(vehicle, true);
     else alert((vehicle.vehicleNo || 'Vehicle') + ' details loading. Please refresh once.');
   }
 
